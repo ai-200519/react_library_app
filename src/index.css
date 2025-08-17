@@ -1,0 +1,163 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap");
+
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #030014;
+
+  --color-light-100: #cecefb;
+  --color-light-200: #a8b5db;
+
+  --color-gray-100: #9ca4ab;
+
+  --color-dark-100: #0f0d23;
+
+  --font-dm-sans: DM Sans, serif;
+
+  --breakpoint-xs: 480px;
+
+  --background-image-hero-pattern: url("/hero-bg.png");
+}
+
+@layer base {
+  body {
+    font-family: "DM Sans", serif;
+    font-optical-sizing: auto;
+    background: #030014;
+  }
+
+  h1 {
+    @apply mx-auto max-w-2xl text-center text-xl font-bold leading-tight tracking-[-1%] text-white sm:text-[36px] sm:leading-[43px];
+  }
+
+  h2 {
+    @apply text-lg font-bold text-white sm:text-xl;
+  }
+
+  main {
+    @apply min-h-screen relative bg-primary;
+  }
+
+  header {
+    @apply sm:mt-5 mt-2;
+  }
+
+  header img {
+    @apply w-full max-w-sm h-auto object-contain mx-auto drop-shadow-md;
+  }
+}
+
+@layer components {
+  .pattern {
+    @apply w-full h-screen bg-center bg-cover bg-no-repeat absolute z-0;
+    background-image: url("C:\Users\pc\Documents\app-library\src\assets\hero-bg.png");
+  } 
+
+  .wrapper {
+    @apply px-3 py-6 xs:p-5 max-w-4xl mx-auto flex flex-col relative z-10;
+  }
+
+  .trending {
+    @apply mt-10;
+
+    & ul {
+      @apply flex flex-row overflow-y-auto gap-2 -mt-5 w-full hide-scrollbar;
+    }
+
+    & ul li {
+      @apply min-w-[130px] flex flex-row items-center;
+    }
+
+    & ul li p {
+      @apply fancy-text mt-[10px] text-nowrap;
+    }
+
+    & ul li img {
+      @apply w-[70px] h-[90px] rounded-lg object-cover -ml-2;
+    }
+  }
+
+  .search {
+    @apply w-full bg-light-100/5 px-2 py-1.5 rounded-lg mt-5 max-w-xl mx-auto;
+
+    & div {
+      @apply relative flex items-center;
+    }
+
+    & img {
+      @apply absolute left-1.5 h-3 w-3;
+    }
+
+    & input {
+      @apply w-full bg-transparent py-1 sm:pr-6 pl-6 text-xs text-gray-200 placeholder-light-200 outline-hidden;
+    }
+  }
+
+  .all-movies {
+    @apply space-y-4;
+
+    & ul {
+      @apply grid grid-cols-1 gap-2 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4;
+    }
+  }
+
+  .movie-card {
+    @apply bg-dark-100 p-2 rounded-2xl shadow-inner shadow-light-100/10;
+
+    & img {
+      @apply rounded-lg h-auto w-full;
+    }
+
+    & h3 {
+      @apply text-white font-bold text-xs line-clamp-1;
+    }
+
+    & .content {
+      @apply mt-1 flex flex-row items-center flex-wrap gap-1;
+    }
+
+    & .rating {
+      @apply flex flex-row items-center gap-0.5;
+    }
+
+    & .rating img {
+      @apply size-2.5 object-contain;
+    }
+
+    & .rating p {
+      @apply font-bold text-xs text-white;
+    }
+
+    & .content span {
+      @apply text-xs text-gray-100;
+    }
+
+    & .content .lang {
+      @apply capitalize text-gray-100 font-medium text-xs;
+    }
+
+    & .content .year {
+      @apply text-gray-100 font-medium text-xs;
+    }
+  }
+}
+
+@utility text-gradient {
+  @apply bg-linear-to-r from-[#D6C7FF] to-[#AB8BFF] bg-clip-text text-transparent;
+}
+
+@utility fancy-text {
+  -webkit-text-stroke: 2px rgba(206, 206, 251, 0.5);
+  font-size: 100px;
+  font-family: "Bebas Neue", sans-serif;
+}
+
+@utility hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
