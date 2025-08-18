@@ -28,11 +28,11 @@
   }
 
   h1 {
-    @apply mx-auto max-w-2xl text-center text-xl font-bold leading-tight tracking-[-1%] text-white sm:text-[36px] sm:leading-[43px];
+    @apply mx-auto max-w-2xl text-center text-lg font-bold leading-tight tracking-[-1%] text-white sm:text-[28px] sm:leading-[34px];
   }
 
   h2 {
-    @apply text-lg font-bold text-white sm:text-xl;
+    @apply text-base font-bold text-white sm:text-lg;
   }
 
   main {
@@ -40,7 +40,7 @@
   }
 
   header {
-    @apply sm:mt-5 mt-2;
+    @apply sm:mt-4 mt-1.5;
   }
 
   header img {
@@ -51,59 +51,59 @@
 @layer components {
   .pattern {
     @apply w-full h-screen bg-center bg-cover bg-no-repeat absolute z-0;
-    background-image: url("C:\Users\pc\Documents\app-library\src\assets\hero-bg.png");
+    background-image: url("./assets/hero-bg.png");
   } 
 
   .wrapper {
-    @apply px-3 py-6 xs:p-5 max-w-4xl mx-auto flex flex-col relative z-10;
+    @apply px-2.5 py-5 xs:p-4 max-w-4xl mx-auto flex flex-col relative z-10;
   }
 
   .trending {
-    @apply mt-10;
+    @apply mt-8;
 
     & ul {
-      @apply flex flex-row overflow-y-auto gap-2 -mt-5 w-full hide-scrollbar;
+      @apply flex flex-row overflow-y-auto gap-1.5 -mt-4 w-full hide-scrollbar;
     }
 
     & ul li {
-      @apply min-w-[130px] flex flex-row items-center;
+      @apply min-w-[104px] flex flex-row items-center;
     }
 
     & ul li p {
-      @apply fancy-text mt-[10px] text-nowrap;
+      @apply fancy-text mt-2 text-nowrap;
     }
 
     & ul li img {
-      @apply w-[70px] h-[90px] rounded-lg object-cover -ml-2;
+      @apply w-[56px] h-[72px] rounded-lg object-cover -ml-1.5;
     }
   }
 
   .search {
-    @apply w-full bg-light-100/5 px-2 py-1.5 rounded-lg mt-5 max-w-xl mx-auto;
+    @apply w-full bg-light-100/5 px-1.5 py-1 rounded-lg mt-4 max-w-xl mx-auto;
 
     & div {
       @apply relative flex items-center;
     }
 
     & img {
-      @apply absolute left-1.5 h-3 w-3;
+      @apply absolute left-1.5 h-2.5 w-2.5;
     }
 
     & input {
-      @apply w-full bg-transparent py-1 sm:pr-6 pl-6 text-xs text-gray-200 placeholder-light-200 outline-hidden;
+      @apply w-full bg-transparent py-1 sm:pr-5 pl-5 text-xs text-gray-200 placeholder-light-200 outline-hidden;
     }
   }
 
   .all-movies {
-    @apply space-y-4;
+    @apply space-y-3;
 
     & ul {
-      @apply grid grid-cols-1 gap-2 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4;
+      @apply grid grid-cols-1 gap-1.5 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4;
     }
   }
 
   .movie-card {
-    @apply bg-dark-100 p-2 rounded-2xl shadow-inner shadow-light-100/10;
+    @apply bg-dark-100 p-1.5 rounded-2xl shadow-inner shadow-light-100/10;
 
     & img {
       @apply rounded-lg h-auto w-full;
@@ -122,7 +122,7 @@
     }
 
     & .rating img {
-      @apply size-2.5 object-contain;
+      @apply size-2 object-contain;
     }
 
     & .rating p {
@@ -148,8 +148,8 @@
 }
 
 @utility fancy-text {
-  -webkit-text-stroke: 2px rgba(206, 206, 251, 0.5);
-  font-size: 100px;
+  -webkit-text-stroke: 1.6px rgba(206, 206, 251, 0.5);
+  font-size: 80px;
   font-family: "Bebas Neue", sans-serif;
 }
 

@@ -1,24 +1,42 @@
-import React from "react"
-import { Button } from "./components/ui/button"
+import React, { useState } from "react"
+import Topbar from "./components/topbar"
+import LibraryView from "./components/library-view"
+import BookmarksView from "./components/bookmarks-view"
+import HomeView from "./components/home-view"
 
 function App() {
-  
+  const [currentView, setCurrentView] = useState("home")
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const renderCurrentView = () => {
+    switch (currentView) {
+      case "home":
+        return <HomeView/>
+      case "library":
+        return (
+          <LibraryView
+          />
+        )
+      case "bookmarks":
+        return (
+          <BookmarksView
+          />
+        )
+      default:
+        return <HomeView />
+    }
+  }
   return (
-    <main>
-      <div className="pattern"/>
-        
-      <div className="wrapper">
-          <header>
-            <h1 className="mb-8 text-5xl leading-tight font-serif italic"><span className="text-gradient">Lire</span>, c'est <span className="text-gradient">grandir</span>... <br/></h1>          
-            <img src="\src\assets\hero.png" alt="Book Banner" />
-            <h1 className="mt-8">Les <span className="text-gradient">Livres</span> vous attendent. Entrez, explorez, découvrez… et <span className="text-gradient">publiez</span>!</h1>
-          </header>
-          <Button> Working.......? </Button>
-
-      </div>
-      <div>
-      </div>
-    </main>
+    <div className="min-h-screen bg-primary">
+        <Topbar
+          mobileMenuOpen={mobileMenuOpen}
+          setMobileMenuOpen={setMobileMenuOpen}
+          currentView={currentView}
+          setCurrentView={setCurrentView}
+        />
+        <main>
+          {renderCurrentView()}    
+        </main>
+    </div>
   ) 
 
 }
