@@ -1,10 +1,9 @@
 import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { BookOpen, Search, Star, Eye, Calendar, User, Heart, Loader2, ChevronLeft, ChevronRight, NotepadText } from "lucide-react"
+import {Search, Loader2, ChevronLeft, ChevronRight, Globe, CalendarFold, PenTool, Accessibility } from "lucide-react"
 
 const HomeView = () => {
   const [searchTerm, setSearchTerm] = useState("")
@@ -23,10 +22,8 @@ const HomeView = () => {
     return [...openLibraryBooks]
   }, [openLibraryBooks])
 
-  const trendingBooks = useMemo(() => {
-    const sortedByViews = [...allBooks].sort((a, b) => (b.views || 0) - (a.views || 0))
-    return sortedByViews.slice(0, 12)
-  }, [allBooks])
+  const [trendingBooks, setTrendingBooks] = useState([])
+  const [isLoadingTrending, setIsLoadingTrending] = useState(false)
 
   const filteredBooks = useMemo(() => {
     if (!searchTerm) return allBooks
@@ -73,7 +70,7 @@ const HomeView = () => {
     const fetchOpenLibraryBooks = async () => {
       const cachedBooks = localStorage.getItem("openLibraryBooks")
       const cacheTimestamp = localStorage.getItem("openLibraryBooksTimestamp")
-      const CACHE_DURATION = 30 * 60 * 1000 // 30 minutes in milliseconds
+      const CACHE_DURATION = 30 * 60 * 1000 // 1/2 hour in milliseconds
 
       // If we have cached data and it's not expired, use it
       if (cachedBooks && cacheTimestamp) {
@@ -89,22 +86,20 @@ const HomeView = () => {
         console.log("Fetching fresh OpenLibrary books")
         setIsLoadingAPI(true)
         const response = await fetch(
-          "https://openlibrary.org/search.json?q=bestseller&limit=8000&fields=key,title,author_name,first_publish_year,isbn,cover_i,subject",
+          "https://openlibrary.org/search.json?q=bestseller&limit=800",
         )
         const data = await response.json()
-
         const formattedBooks = data.docs.map((book, index) => ({
           id: `ol-${book.key?.replace("/works/", "") || index}`,
           title: book.title || "Titre non disponible",
-          author: book.author_name?.[0] || "Auteur inconnu",
+          author: book.author_name?.length > 1 ? book.author_name.join(", ") : book.author_name?.[0] || "Auteur inconnu",
           publishedYear: book.first_publish_year || new Date().getFullYear(),
           isbn: book.isbn?.[0].split("-") || "",
-          genre: book.subject?.[0] || "Fiction",
-          status: "available",
-          description: `Livre populaire de ${book.author_name?.[0] || "auteur inconnu"}`,
-          imageUrl: book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg` : null,
-          views: Math.floor(Math.random() * 1000) + 100,
-          rating: (Math.random() * 2 + 3).toFixed(1),
+          genre: book.subject?.[0] || "Other",
+          description: `Livre populaire de ${book.author_name || "auteur inconnu"}`,
+          imageUrl: book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg` : null,
+          rating: (Math.random() * 2 + 3).toFixed(1), // Random rating between 3.0-5.0
+          workKey: book.key, // Store the work key for description fetching
         }))
 
         localStorage.setItem("openLibraryBooks", JSON.stringify(formattedBooks))
@@ -121,6 +116,58 @@ const HomeView = () => {
 
     fetchOpenLibraryBooks()
   }, []) // Empty dependency array ensures this only runs once per app session
+
+  // Fetch trending books from OpenLibrary trending API
+  useEffect(() => {
+    const fetchTrendingBooks = async () => {
+      const cachedTrending = localStorage.getItem("trendingBooks")
+      const cacheTimestamp = localStorage.getItem("trendingBooksTimestamp")
+      const CACHE_DURATION = 30 * 60 * 1000 // 1/2 hour in milliseconds
+
+      // If we have cached data and it's not expired, use it
+      if (cachedTrending && cacheTimestamp) {
+        const isExpired = Date.now() - Number.parseInt(cacheTimestamp) > CACHE_DURATION
+        if (!isExpired) {
+          console.log("Using cached trending books")
+          setTrendingBooks(JSON.parse(cachedTrending))
+          return
+        }
+      }
+
+      try {
+        console.log("Fetching fresh trending books")
+        setIsLoadingTrending(true)
+          const response = await fetch("https://openlibrary.org/trending/yearly.json")
+        const data = await response.json()
+        
+        // Parse the JSON data from OpenLibrary trending API
+        const formattedTrendingBooks = data.works?.slice(0, 12).map((work, index) => ({
+          id: `trending-${work.key?.replace("/works/", "") || index}`,
+          title: work.title || "Titre non disponible",
+          imageUrl: work.cover_i ? `https://covers.openlibrary.org/b/id/${work.cover_i}-L.jpg` : null,
+          })) || []
+
+        localStorage.setItem("trendingBooks", JSON.stringify(formattedTrendingBooks))
+        localStorage.setItem("trendingBooksTimestamp", Date.now().toString())
+
+        setTrendingBooks(formattedTrendingBooks)
+        console.log("Cached", formattedTrendingBooks.length, "trending books")
+      } catch (error) {
+        console.error("Erreur lors du chargement des livres tendance:", error)
+        // Fallback to sorting by rating if trending API fails
+        const sortedByRating = [...allBooks].sort((a, b) => {
+          const ratingA = parseFloat(a.rating) || 0
+          const ratingB = parseFloat(b.rating) || 0
+          return ratingB - ratingA
+        })
+        setTrendingBooks(sortedByRating.slice(0, 12))
+      } finally {
+        setIsLoadingTrending(false)
+      }
+    }
+
+    fetchTrendingBooks()
+  }, [allBooks]) // Depend on allBooks for fallback
 
   useEffect(() => {
     setIsSearching(true)
@@ -190,7 +237,7 @@ const HomeView = () => {
           <Card className="mt-5.5">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Search color="#AB8BFF" className="h-5 w-5 text-primary" />
+                <Globe color="#AB8BFF" className="h-5 w-5 text-primary" />
                 <CardTitle>Explorer les livres en ligne</CardTitle>
               </div>
             </CardHeader>
@@ -233,7 +280,7 @@ const HomeView = () => {
                   <label
                     htmlFor="search-year"
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
+                  > 
                     Année
                   </label>
                 </div>
@@ -246,13 +293,13 @@ const HomeView = () => {
                 placeholder={getSearchPlaceholder()}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 hover:border-primary/50 focus:border-primary transition-colors"
+                className="pl-10 hover:border-[#AB8BFF]/50 focus:border-primary transition-colors"
                 disabled={!searchFields.title && !searchFields.author && !searchFields.year}
               />
             </div>
 
             <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-white">
                 {filteredBooks.length > 0 ? (
                   <span>
                     Affichage de {paginationInfo.startIndex}-{paginationInfo.endIndex} sur {filteredBooks.length} livre(s)
@@ -264,29 +311,59 @@ const HomeView = () => {
             </div>
           </CardContent>
         </Card>
-        <Card>
-        <CardHeader>
+        <div>
+        <header>
           <div className="flex items-center gap-2">
-            <NotepadText color="#AB8BFF" className="h-5 w-5 text-primary" />
-            <CardTitle>Résultats de la recherche</CardTitle>
             {isSearching && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
           </div>
-        </CardHeader>
-        <CardContent>
+        </header>
+        <main>
           {isSearching && (
             <div className="space-y-4">
               <div className="flex items-center justify-center py-8">
                 <div className="flex flex-col items-center gap-3">
                   <Loader2 color="#AB8BFF" className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground animate-pulse">Recherche en cours...</p>
+                  <p className="text-sm text-white animate-pulse">Recherche en cours...</p>
                 </div>
               </div>
+              <div
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"   
+              >
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className={`p-4 border rounded-lg animate-pulse `}
+                  >
+                    <div
+                      className={`w-full h-32 mb-3 bg-[#AB8BFF] rounded flex-shrink-0`}
+                    ></div>
+                    <div className={`space-y-2`}>
+                      <div className="h-4 bg-[#AB8BFF] rounded w-3/4"></div>
+                      <div className="h-3 bg-[#AB8BFF] rounded w-1/2"></div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-5 bg-[#AB8BFF] rounded w-16"></div>
+                        <div className="h-5 bg-[#AB8BFF] rounded w-20"></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>              
             </div>
           )}
 
           {!isSearching && (
             <div className="space-y-4">
-              {trendingBooks.length > 0 && (
+              {isLoadingTrending ? (
+                <section className="trending">
+                  <h2>Tendances</h2>
+                  <div className="flex items-center justify-center py-4">
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      <p className="text-xs text-white animate-pulse">Chargement des tendances...</p>
+                    </div>
+                  </div>
+                </section>
+              ) : trendingBooks.length > 0 && (
                 <section className="trending">
                   <h2>Tendances</h2>
                   <ul>
@@ -307,12 +384,12 @@ const HomeView = () => {
                   <div className="flex items-center justify-center py-8">
                     <div className="flex flex-col items-center gap-3">
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      <p className="text-sm text-muted-foreground animate-pulse">Chargement...</p>
+                      <p className="text-sm text-white animate-pulse">Chargement...</p>
                     </div>
                   </div>
                 ) : filteredBooks.length === 0 ? (
                   <div className="flex flex-col items-center justify-center gap-3 py-10">
-                    <img src="/src/assets/no-book.png" alt="Aucun livre" className="w-24 h-24 opacity-60" />
+                    <Accessibility className=" text-white mx-auto mb-4 w-24 h-24 opacity-60" />
                     <p className="text-sm text-gray-100">Aucun résultat trouvé</p>
                   </div>
                 ) : (
@@ -321,13 +398,21 @@ const HomeView = () => {
                       {paginatedBooks.map((book) => (
                         <li key={book.id} className="movie-card">
                           <img src={book.imageUrl || "/src/assets/no-book.png"} alt={book.title} />
-                          <h3>{book.title}</h3>
+                          <h3 className="text-[16px] mt-2.5 ">{book.title}</h3>
                           <div className="content">
                             <div className="rating">
                               <img src="/src/assets/star.svg" alt="rating" />
                               <p>{book.rating}</p>
                             </div>
+                            <span>•</span>
+                            <span>
+                            <PenTool className="size-3"></PenTool>
+                            </span>                            
                             <span className="lang">{book.author}</span>
+                            <span>•</span>
+                            <span>
+                            <CalendarFold className="size-3"></CalendarFold>
+                            </span>
                             <span className="year">{book.publishedYear}</span>
                           </div>
                         </li>
@@ -383,8 +468,8 @@ const HomeView = () => {
               </section>
             </div>
           )}
-        </CardContent>
-        </Card>              
+        </main>
+        </div>              
 
 
       </div>
