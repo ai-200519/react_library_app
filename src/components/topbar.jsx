@@ -11,7 +11,7 @@ export default function Topbar({ mobileMenuOpen, setMobileMenuOpen, currentView,
     const handleScroll = () => {
       const currentScrollY = window.scrollY
       
-      if (currentScrollY > lastScrollY && currentScrollY > 10) {
+      if (currentScrollY > lastScrollY && currentScrollY > 50) {
         setIsVisible(false)
       } else if (currentScrollY < lastScrollY) {
         setIsVisible(true)

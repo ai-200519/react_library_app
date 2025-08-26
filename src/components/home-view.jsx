@@ -397,7 +397,7 @@ const HomeView = () => {
                     <ul>
                       {paginatedBooks.map((book) => (
                         <li key={book.id} className="movie-card">
-                          <img src={book.imageUrl || "/src/assets/no-book.png"} alt={book.title} />
+                          <img src={book.imageUrl || "/src/assets/no-book.png"} ClassName="rounded-lg w-full h-auto object-cover cursor-pointer hover:opacity-80 mb-2 group-hover:scale-105 transition-transform duration-200" alt={book.title} />
                           <h3 className="text-[16px] mt-2.5 ">{book.title}</h3>
                           <div className="content">
                             <div className="rating">

@@ -79,8 +79,8 @@ const buttonVariants = cva(
         
         // Status variants with light effects
         destructive:
-          "bg-red-600/90 text-white font-semibold tracking-wide shadow-lg shadow-red-600/20 hover:bg-gradient-to-r hover:from-red-300 hover:to-rose-300 hover:text-red-900 hover:shadow-2xl hover:shadow-red-300/60 hover:scale-105 focus-visible:ring-red-300/50 border border-red-500/20 hover:border-red-200/50 rounded-md hover:[box-shadow:_0_0_30px_rgba(248,113,113,0.6)]",
-        
+          "bg-red-600 text-white font-semibold hover:bg-red-500 focus-visible:ring-red-400/50 rounded-md",
+
         success:
           "bg-emerald-600/90 text-white font-semibold tracking-wide shadow-lg shadow-emerald-600/20 hover:bg-gradient-to-r hover:from-emerald-300 hover:to-green-300 hover:text-emerald-900 hover:shadow-2xl hover:shadow-emerald-300/60 hover:scale-105 focus-visible:ring-emerald-300/50 border border-emerald-500/20 hover:border-emerald-200/50 rounded-md hover:[box-shadow:_0_0_30px_rgba(52,211,153,0.6)]",
         
