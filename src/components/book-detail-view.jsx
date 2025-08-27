@@ -170,7 +170,7 @@ const BookDetailView = ({ bookId, onBack }) => {
                   <img 
                     src={book.imageUrl || "/src/assets/no-book.png"} 
                     alt={book.title} 
-                    className="w-full max-w-sm mx-auto lg:mx-0 rounded-2xl shadow-2xl transform group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-120 max-w-sm mx-auto lg:mx-0 rounded-2xl shadow-2xl transform group-hover:scale-105 transition-transform duration-300"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 </div>  
@@ -255,7 +255,7 @@ const BookDetailView = ({ bookId, onBack }) => {
                     {book.genre}
                   </Badge>
                   {book.meta?.tags?.map((tag) => (
-                    <Badge key={tag} variant="outline" className="text-light-200 border-light-100/30">
+                    <Badge key={tag} variant="outline" className="text-red-400 bg-red-400/10 border-light-100/30">
                       {tag}
                     </Badge>
                   ))} 

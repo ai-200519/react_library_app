@@ -15,16 +15,22 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { BookOpen, Hash, ArrowRightLeft, Plus, BookCopy, Layers, Trash2, Pencil, Eye, Edit, PenTool, Calendar1, CalendarCog, CalendarFold } from "lucide-react"
+import { BookOpen, Hash, ArrowRightLeft, Plus, BookCopy, Layers, Trash2, Pencil, Eye, Edit, PenTool, Calendar1, CalendarCog, CalendarFold, Tag, Tags, TagsIcon, MoreHorizontal, BookHeart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetTrigger } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Card } from './ui/card'
 import { toast } from 'sonner'
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 
 import BookForm from './book-form'
 import { Progress } from './ui/progress'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './ui/breadcrumb'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
+import DropdownDot from './DropdownDot'
+import BookCard from './book-card'
 
 
 const LibraryView = ({ onBookSelect, onBack }) => {
@@ -34,6 +40,64 @@ const LibraryView = ({ onBookSelect, onBack }) => {
   const bookFormRef = useRef(null)
   const [canSaveForm, setCanSaveForm] = useState(false)
   const [editingBook, setEditingBook] = useState(null)
+  const [selectedTag, setSelectedTag] = useState(null);
+  const [dialogTag, setDialogTag] = useState(null); // tag being renamed
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+
+  const handleRenameConfirm = () => {
+    if (!newName || newName === dialogTag) {
+      toast.error("Renommage annulé");
+      setIsDialogOpen(false);
+      return;
+    }
+  
+    // Ensure tag starts with #
+    const normalizedName = newName.startsWith("#") ? newName : `#${newName}`;
+  
+    const updatedBooks = userBooks.map((b) => {
+      const values = b.meta?.tags || [];
+      if (values.includes(dialogTag)) {
+        return {
+          ...b,
+          meta: {
+            ...b.meta,
+            tags: values.map((t) => (t === dialogTag ? normalizedName : t)),
+          },
+        };
+      }
+      return b;
+    });
+  
+    setUserBooks(updatedBooks);
+    toast.success(`Tag renommé en "${normalizedName}"`);
+    setIsDialogOpen(false);
+  };
+  
+  const handleDeleteTag = (tag) => {
+    toast(`Supprimer le tag "${tag}" ?`, {
+      description: "Cette action ne peut pas être annulée.",
+      action: {
+        label: "Supprimer",
+        onClick: () => {
+          const updatedBooks = userBooks.map(b => {
+            return {
+              ...b,
+              meta: {
+                ...b.meta,
+                tags: (b.meta?.tags || []).filter(t => t !== tag)
+              }
+            }
+          })
+          setUserBooks(updatedBooks)
+          toast.success(`Tag "${tag}" supprimé`)
+        }
+      },
+      cancel: { label: "Annuler", onClick: () => toast.dismiss() },
+      duration: 8000
+    })
+  }
+  
 
   // Load and persist user-created books
   useEffect(() => {
@@ -235,115 +299,19 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                   </header>
                 ) : (
                   <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 ">
-                    {userBooks.map((book) => {
-                      const readingProgress = Math.min((book.meta?.pagesRead || 0) / (book.pages || 1) * 100, 100) // <-- CHANGE: moved inside map
-                      return (
-                        <li
-                          key={book.id}
-                          className="flex gap-4 p-4 rounded-xl bg-dark-100 shadow-inner shadow-light-100/10 hover:bg-dark-100/70 transition"
-                        >
-                          {/* Cover */}
-                          <img
-                            src={book.imageUrl || "/src/assets/no-book.png"}
-                            alt={book.title}
-                            className="w-30 h-50 object-cover rounded-lg cursor-pointer hover:opacity-80 transition"
-                            onClick={() => onBookSelect(book.id)}
-                          />
-
-                          {/* Right Column (Details) */}
-                          <div className="flex-1 space-y-2">
-                            {/* Top row: Title + Actions */}
-                            <div className="flex justify-between items-start">
-                              <h4
-                                className="text-white cursor-pointer hover:text-light-200 font-bold text-xl line-clamp-1"
-                                onClick={() => onBookSelect(book.id)}
-                              >
-                                {book.title}
-                              </h4>
-                              <div className="flex gap-2">
-                                <Button variant="outline" size="sm" onClick={() => onBookSelect(book.id)}>
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button variant="outline" size="sm" onClick={() => openEditBook(book)}>
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => handleDeleteBook(book)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            {/* Author + Year */}
-                            <div className="text-sm text-light-200 flex items-center gap-2">
-                              <PenTool className="h-4 w-4" />
-                              <span>{book.author || "Auteur inconnu"}</span>
-                              {book.publishedYear && (
-                                <>
-                                  <span>•</span>
-                                  <CalendarFold className="h-4 w-4" />                                
-                                  <span>{book.publishedYear}</span>
-                                </>
-                              )}
-                            </div>
-
-                            {/* Description */}
-                            <p className="text-light-300 text-sm line-clamp-2">
-                              {book.description || "Pas de description disponible."}
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              <Badge className="bg-gradient-to-r from-[#D6C7FF] to-[#AB8BFF] text-primary">
-                                {book.genre}
-                              </Badge>
-                            </div>  
-                            {/* Tags */}
-                            {book.meta?.tags?.length ? (
-                              <div className="flex flex-wrap gap-2 mt-2">
-                                {book.meta.tags.slice(0, 3).map((t) => (
-                                  <Badge
-                                    key={t}
-                                    variant="outline"
-                                    className="text-light-200 border-light-100/30"
-                                  >
-                                    {t}
-                                  </Badge>
-                                ))}
-                              </div>
-                            ) :
-                            <Badge className="text-light-200 border-light-100/30">
-                              #notags 😒
-                            </Badge>
-                            }
-
-                            {/* Progress */}
-                            {readingProgress > 0 ? (
-                              <div className="mt-3">
-                                <Progress value={readingProgress} className="bg-light-100/10 h-2" />
-                                <p className="text-xs text-light-200 mt-1">
-                                  Progression : {Math.round(readingProgress)}%
-                                </p>
-                              </div>
-                            ):
-                              <div className="mt-4">
-                                <Progress value={readingProgress} className="bg-light-100/10 h-2" />
-                                <p className="text-xs text-light-200 mt-1">
-                                  Progression : Not defined %
-                                </p>
-                              </div>                              
-                            }
-
-                          </div>
-                        </li>
-                      )
-                    })}
+                    {userBooks.map((book) =>(
+                        <BookCard
+                        key={book.id}
+                        book={book}
+                        onSelect={onBookSelect}
+                        onEdit={openEditBook}
+                        onDelete={handleDeleteBook}
+                      />
+                    ))}
                   </ul>
                 )}
               </>
             )}
-
             {activeSection === "shelves" && (
               <>
                 <h3 className="text-white text-2xl font-semibold mb-2">Étagères</h3>
@@ -430,40 +398,123 @@ const LibraryView = ({ onBookSelect, onBack }) => {
             )}
 
             {activeSection === "tags" && (
-              <>
-                <h3 className="text-white text-2xl font-semibold mb-2">Tags</h3>
-                <span>Organisez vos livres par catégories</span>                
+              <div className="text-amber-50">
+                <h3 className="text-white text-2xl font-semibold mb-2 flex items-center gap-2">
+                  <Hash className="h-5 w-5" />
+                  Tags
+                </h3>
+                <span>Organisez vos livres par catégories</span>
                 <Separator className="my-2 bg-light-100/20" />
-                {tagsMap.size === 0 ? (
-                  <header className="text-center max-w-md mx-auto space-y-3">
-                    <img src="/src/assets/3D Hashtag.png" className='max-w-xs mx-auto' alt="Book Banner" />
-                    <h4 className="text-white font-semibold">Aucun # tag.</h4>
-                    <p className=" text-l">Ajoutez-en via l'onglet <span className="text-gradient"> Notations</span>.</p>
-                  </header>                  
-                ) : (
-                  Array.from(tagsMap.entries()).map(([tag, books]) => (
-                    <div key={tag} className="mb-4">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-light-200 border-light-100/30">{tag}</Badge>
-                        <span className="text-xs text-gray-100">{books.length} livre(s)</span>
-                      </div>
-                      <ul className="mt-2 grid grid-cols-1 gap-2 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                        {books.map((book) => (
-                          <li key={book.id} className="bg-dark-100 p-2 rounded-xl shadow-inner shadow-light-100/10">
-                            <img 
-                              src={book.imageUrl || "/src/assets/no-book.png"} 
-                              alt={book.title} 
-                              className="rounded-lg w-full h-auto object-cover cursor-pointer hover:opacity-80 transition-opacity" 
-                              onClick={() => onBookSelect(book.id)}
-                            />
-                            <h4 className="text-white cursor-pointer hover:opacity-80 font-bold text-sm mt-2 line-clamp-1">{book.title}</h4>
-                          </li>
-                        ))}
+
+                {/* Breadcrumb */}
+                <Breadcrumb className="mb-4">
+                  <BreadcrumbList>
+                    <BreadcrumbItem>
+                      <BreadcrumbLink
+                        className="flex items-center gap-1 text-light-200 hover:text-light-100 transition-colors cursor-pointer"
+                        onClick={() => setSelectedTag(null)}
+                      >
+                        <Hash className="h-4 w-4" /> My Tags
+                      </BreadcrumbLink>
+                      <BreadcrumbSeparator className="text-light-200" />
+                    </BreadcrumbItem>
+
+                    {selectedTag && (
+                      <BreadcrumbItem>
+                        <BreadcrumbPage className="text-white font-semibold flex items-center gap-1">
+                          <BookHeart className="h-4 w-4" />
+                          {selectedTag}
+                        </BreadcrumbPage>
+                      </BreadcrumbItem>
+                    )}
+                  </BreadcrumbList>
+                </Breadcrumb>
+
+                {/* Tags Overview or Selected Tag Books */}
+                {selectedTag ? (
+                  <>
+                    {/* Books under selected tag */}
+                    {tagsMap.get(selectedTag)?.length ? (
+                      <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 ">
+                        {tagsMap.get(selectedTag).map((book) => (
+                          <BookCard
+                            key={book.id}
+                            book={book}
+                            onSelect={onBookSelect}
+                            onEdit={openEditBook}
+                            onDelete={handleDeleteBook}
+                          />
+                        )
+                        )}
                       </ul>
-                    </div>
-                  ))
+                    ) : (
+                      <header className="text-center max-w-md mx-auto space-y-3">
+                        <img src="/src/assets/no-mybooks-no.png" className='max-w-xs mx-auto' alt="Book Banner" />
+                        <h4 className="text-white font-semibold">Aucun livre trouvé pour ce tag.</h4>
+                      </header>                      
+                    )}
+                  </>
+                ) : (
+                  // Show all tags overview
+                  tagsMap.size === 0 ? (
+                    <header className="text-center max-w-md mx-auto space-y-3">
+                      <img src="/src/assets/3D Hashtag.png" className="max-w-xs mx-auto" alt="Book Banner" />
+                      <h4 className="text-white font-semibold">Aucun # tag.</h4>
+                      <p className=" text-light-200 text-l">
+                        Ajoutez-en via l'onglet <span className="text-gradient">Notations</span>.
+                      </p>
+                    </header>
+                  ) : (
+                    <ul className="grid grid-cols-2 xs:grid-cols-3 md:grid-cols-4 gap-4">
+                      {Array.from(tagsMap.entries()).map(([tag, books]) => (
+                        <li key={tag} className="relative">
+                          <div
+                            className="flex items-center justify-between px-3 py-1 rounded-full text-sm font-medium bg-gradient-to-r from-[#D6C7FF]/30 to-[#AB8BFF]/30 text-white cursor-pointer hover:from-[#D6C7FF]/50 hover:to-[#AB8BFF]/50 transition"
+                            
+                          >
+                            <div onClick={() => setSelectedTag(tag)} className="flex items-center gap-2">
+                              <TagsIcon className="h-4 w-4" />
+                              <span>{tag}</span>
+                              <span className="text-xs text-gray-100 font-semibold">{books.length} livre(s)</span>
+                            </div>
+
+                            {/* Dropdown Trigger */}
+                            <DropdownDot
+                              onRenameClick={() => {
+                                setDialogTag(tag)
+                                setNewName(tag)
+                                setIsDialogOpen(true)
+                              }}
+                              onDeleteClick={() => handleDeleteTag(tag)}
+                            />
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )
                 )}
-              </>
+                  <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Renommer tag</DialogTitle>
+                        <DialogDescription>
+                          Entrez un nouveau nom pour tag "{dialogTag}"
+                        </DialogDescription>
+                      </DialogHeader>
+                      <Input
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                        autoFocus
+                        className="mt-2"
+                        onKeyDown={(e) => e.key === "Enter" && handleRenameConfirm()}
+                      />
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Annuler</Button>
+                        <Button onClick={handleRenameConfirm}>Renommer</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>  
+              </div>              
             )}
           </div>
         </div>
