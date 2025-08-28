@@ -32,7 +32,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import DropdownDot from './DropdownDot'
 import BookCard from './book-card'
 
-
 const LibraryView = ({ onBookSelect, onBack }) => {
   const [userBooks, setUserBooks] = useState([])
   const [activeSection, setActiveSection] = useState("myBooks")
@@ -44,6 +43,13 @@ const LibraryView = ({ onBookSelect, onBack }) => {
   const [dialogTag, setDialogTag] = useState(null); // tag being renamed
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newName, setNewName] = useState("");
+  const [selectedShelf, setSelectedShelf] = useState(null);
+
+  const [isAddShelfDialogOpen, setIsAddShelfDialogOpen] = useState(false);
+  const [newShelfName, setNewShelfName] = useState("");
+  const [dialogShelf, setDialogShelf] = useState(null); // shelf being renamed
+  const [isShelfDialogOpen, setIsShelfDialogOpen] = useState(false);
+  const [newShelfRenameName, setNewShelfRenameName] = useState("");
 
   const handleRenameConfirm = () => {
     if (!newName || newName === dialogTag) {
@@ -72,6 +78,109 @@ const LibraryView = ({ onBookSelect, onBack }) => {
     setUserBooks(updatedBooks);
     toast.success(`Tag renommé en "${normalizedName}"`);
     setIsDialogOpen(false);
+  };
+
+  const handleShelfRenameConfirm = () => {
+    if (!newShelfRenameName || newShelfRenameName === dialogShelf?.name) {
+      toast.error("Renommage annulé");
+      setIsShelfDialogOpen(false);
+      return;
+    }
+  
+    const trimmedName = newShelfRenameName.trim();
+    
+    // Check for duplicate names (excluding current shelf)
+    if (shelves.some(s => s.id !== dialogShelf?.id && s.name.toLowerCase() === trimmedName.toLowerCase())) {
+      toast.error("Une étagère portant ce nom existe déjà.");
+      return;
+    }
+  
+    // Update the shelf name in shelves array
+    setShelves(prev => prev.map(shelf => 
+      shelf.id === dialogShelf?.id 
+        ? { ...shelf, name: trimmedName }
+        : shelf
+    ));
+  
+    // IMPORTANT: Update the shelf name in all books that reference this shelf
+    const updatedBooks = userBooks.map(book => {
+      const bookShelves = book.meta?.shelves || [];
+      // Check if this book is in the renamed shelf
+      if (bookShelves.includes(dialogShelf?.id)) {
+        return {
+          ...book,
+          meta: {
+            ...book.meta,
+            shelfName: trimmedName // Update the shelf name in book metadata
+          }
+        };
+      }
+      return book;
+    });
+    
+    // Update the books state if any books were modified
+    if (updatedBooks.some((book, index) => book !== userBooks[index])) {
+      setUserBooks(updatedBooks);
+    }
+  
+    toast.success(`Étagère renommée en "${trimmedName}"`);
+    setIsShelfDialogOpen(false);
+  };
+
+  const handleDeleteShelf = (shelf) => {
+    // Prevent deletion if it's the last shelf
+    if (shelves.length <= 1) {
+      toast.error("Impossible de supprimer la dernière étagère", {
+        description: "Vous devez avoir au moins une étagère dans votre bibliothèque."
+      });
+      return;
+    }
+
+    const booksInShelf = shelvesMap.get(shelf.id) || [];
+    
+    toast(`Supprimer l'étagère "${shelf.name}" ?`, {
+      description: booksInShelf.length > 0 
+        ? `Cette étagère contient ${booksInShelf.length} livre(s). Les livres ne seront pas supprimés mais retirés de cette étagère.`
+        : "Cette action ne peut pas être annulée.",
+      action: {
+        label: "Supprimer",
+        onClick: () => {
+          // Remove shelf from shelves list
+          setShelves(prev => prev.filter(s => s.id !== shelf.id));
+          
+          // Remove shelf from all books
+          if (booksInShelf.length > 0) {
+            const updatedBooks = userBooks.map(book => {
+              const bookShelves = book.meta?.shelves || [];
+              if (bookShelves.includes(shelf.id)) {
+                return {
+                  ...book,
+                  meta: {
+                    ...book.meta,
+                    shelves: bookShelves.filter(id => id !== shelf.id),
+                    shelfName: "" // Clear shelf name if it was the deleted shelf
+                  }
+                };
+              }
+              return book;
+            });
+            setUserBooks(updatedBooks);
+          }
+          
+          toast.success(`Étagère "${shelf.name}" supprimée`);
+          
+          // If we were viewing this shelf, go back to shelves overview
+          if (selectedShelf === shelf.id) {
+            setSelectedShelf(null);
+          }
+        },
+      },
+      cancel: {
+        label: "Annuler",
+        onClick: () => toast.dismiss()
+      },
+      duration: 10000,
+    });
   };
   
   const handleDeleteTag = (tag) => {
@@ -122,17 +231,57 @@ const LibraryView = ({ onBookSelect, onBack }) => {
     { id: "tags", title: "Tags Personnels", titledescription: "Vos tags personnels", icon: Hash },
   ]
 
+  const [shelves, setShelves] = useState([
+    { id: "default", name: "Shelf A" }
+  ]);
+
+  // Fix: Improved shelf mapping logic
   const shelvesMap = useMemo(() => {
     const map = new Map()
-    for (const b of userBooks) {
-      const shelves = b.meta?.shelves || []
-      for (const s of shelves) {
-        if (!map.has(s)) map.set(s, [])
-        map.get(s).push(b)
+    
+    // Initialize all shelves with empty arrays
+    for (const shelf of shelves) {
+      map.set(shelf.id, [])
+    }
+    
+    // Populate shelves with books
+    for (const book of userBooks) {
+      const bookShelves = book.meta?.shelves || []
+      
+      // Handle both string and array formats for backward compatibility
+      const shelfIds = Array.isArray(bookShelves) ? bookShelves : [bookShelves].filter(Boolean)
+      
+      for (const shelfId of shelfIds) {
+        if (shelfId) { // Only process non-empty shelf IDs
+          if (!map.has(shelfId)) {
+            // If shelf doesn't exist in our shelves list, create it
+            map.set(shelfId, [])
+          }
+          map.get(shelfId).push(book)
+        }
       }
     }
+    
+    console.log('Shelves map:', Object.fromEntries(map)) // Debug log
     return map
-  }, [userBooks])
+  }, [userBooks, shelves])
+  
+  // load shelves from localStorage
+  useEffect(() => {
+    const savedShelves = localStorage.getItem("userShelves")
+    if (savedShelves) {
+      try {
+        setShelves(JSON.parse(savedShelves))
+      } catch(err) {
+        console.error("Failed to parse userShelves from localStorage", err)
+      }
+    }
+  }, [])
+  
+  useEffect(() => {
+    localStorage.setItem("userShelves", JSON.stringify(shelves))
+  }, [shelves])
+  
 
   const tagsMap = useMemo(() => {
     const map = new Map()
@@ -184,6 +333,34 @@ const LibraryView = ({ onBookSelect, onBack }) => {
       },
       duration: 10000, // Give user time to decide
     })
+  }
+
+  const generateShelfId = (name) => {
+    const base = name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, "")
+    if (!base) return `shelf-${Date.now()}`
+    if (!shelves.some(s => s.id === base)) return base
+    // append increasing suffix if collision
+    let i = 1
+    while (shelves.some(s => s.id === `${base}-${i}`)) i++
+    return `${base}-${i}`
+  }
+
+  const handleAddShelfConfirm = () => {
+    const name = (newShelfName || "").trim()
+    if (!name) {
+      toast.error("Veuillez saisir un nom d'étagère.")
+      return
+    }
+    // prevent name duplicate
+    if (shelves.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+      toast.error("Une étagère portant ce nom existe déjà.")
+      return
+    }
+    const id = generateShelfId(name)
+    setShelves(prev => [...prev, { id, name }])
+    toast.success(`Étagère "${name}" créée`)
+    setNewShelfName("")
+    setIsAddShelfDialogOpen(false)
   }
 
   return (
@@ -245,6 +422,7 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                   key={editingBook ? `edit-${editingBook.id}` : 'new'}
                   ref={bookFormRef}
                   book={editingBook || undefined}
+                  shelves={shelves}   
                   onCanSaveChange={setCanSaveForm}
                   onSave={(newBook) => {
                     setUserBooks((prev) => {
@@ -261,7 +439,7 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                 <SheetFooter>
                   <div className="flex items-center gap-2">
                     <Button variant="muted" onClick={() => { setIsAddOpen(false); setEditingBook(null); bookFormRef.current?.reset() }}>Annuler</Button>
-                    <Button
+                    <Button 
                       variant="secondary"
                       onClick={() => {
                         if (!bookFormRef.current) return
@@ -313,43 +491,168 @@ const LibraryView = ({ onBookSelect, onBack }) => {
               </>
             )}
             {activeSection === "shelves" && (
-              <>
+              <div className="text-amber-50">
                 <h3 className="text-white text-2xl font-semibold mb-2">Étagères</h3>
-                <span>Vos étagères, votre royaume ... Organisez vos collections des livres en des Shelves</span>
+                <span>Vos étagères, organisez vos collections de livres.</span>
                 <Separator className="my-2 bg-light-100/20" />
-                {shelvesMap.size === 0 ? (
-                  <header className="text-center max-w-md mx-auto space-y-3">
-                    <img src="/src/assets/no-mybooks-no.png" className='max-w-xs mx-auto' alt="Book Banner" />
-                    <h4 className="text-white font-semibold">Aucune Shelve.</h4>
-                    <p className="text-sm text-light-200"> </p>
-                    <p className=" text-l">Ajoutez-en via <span className="text-gradient">l'onglet Notations </span> .</p>
-                    <p className="text-light-200 text-l">Ou en cliquant sur  .....</p>
-                  </header>
+
+                {/* Breadcrumb */}
+                <Breadcrumb className="mb-4">
+                  <BreadcrumbList>
+                    <BreadcrumbItem>
+                      <BreadcrumbLink
+                        className="flex items-center gap-1 text-light-200 hover:text-light-100 transition-colors cursor-pointer"
+                        onClick={() => setSelectedShelf(null)}
+                      >
+                        <Layers className="h-4 w-4" /> Mes étagères
+                      </BreadcrumbLink>
+                      <BreadcrumbSeparator className="text-light-200" />  
+                    </BreadcrumbItem>
+
+                    {selectedShelf && (
+                      <BreadcrumbItem>
+                        <BreadcrumbPage className="text-white font-semibold flex items-center gap-1">
+                          <BookOpen className="h-4 w-4" /> {shelves.find(s => s.id === selectedShelf)?.name}
+                        </BreadcrumbPage>
+                      </BreadcrumbItem>
+                    )}
+                  </BreadcrumbList>
+                </Breadcrumb>
+
+                {/* Shelves Overview or Selected Shelf Books */}
+                {!selectedShelf ? (
+                  shelves.length === 0 ? (
+                    <header className="text-center max-w-md mx-auto space-y-3">
+                      <img src="/src/assets/no-mybooks-no.png" className='max-w-xs mx-auto' alt="Book Banner" />
+                      <h4 className="text-white font-semibold">Aucune étagère.</h4>
+                      <p className="text-light-200 text-l">Ajoutez-en via le bouton <span className="text-gradient">« + »</span>.</p>
+                    </header>
+                  ) : (
+                    <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {shelves.map(shelf => (
+                      <li key={shelf.id} className="relative group cursor-pointer">
+                        <div className="bg-dark-100 p-2 rounded-xl shadow-inner shadow-light-100/10 hover:bg-dark-100/80 transition-colors">
+                          <div className="grid grid-cols-2 gap-1" onClick={() => setSelectedShelf(shelf.id)}>
+                            {[0,1,2,3].map(i => {
+                              const book = shelvesMap.get(shelf.id)?.[i];
+                              return (
+                                <img
+                                  key={i}
+                                  src={book?.imageUrl || "/src/assets/no-mybooks-no.png"}
+                                  alt={book?.title || "Placeholder"}
+                                  className="w-full h-20 object-cover rounded"
+                                />
+                              )
+                            })}
+                          </div>
+                          <div className="mt-2 flex justify-between items-center">
+                            <div onClick={() => setSelectedShelf(shelf.id)} className="flex-1">
+                              <span className="text-white font-semibold truncate block">{shelf.name}</span>
+                              <span className="text-xs text-gray-100">{(shelvesMap.get(shelf.id)?.length || 0)} livre(s)</span>
+                            </div>
+                            
+                            {/* Dropdown for shelf actions */}
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon-sm" className="h-6 w-6">
+                                    <MoreHorizontal className="h-3 w-3" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="bg-dark-100 border-light-100/20">
+                                  <DropdownMenuItem 
+                                    className="text-light-200 hover:bg-light-100/10 focus:bg-light-100/10"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDialogShelf(shelf);
+                                      setNewShelfRenameName(shelf.name);
+                                      setIsShelfDialogOpen(true);
+                                    }}
+                                  >
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Renommer
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    className="text-red-400 hover:bg-red-500/10 focus:bg-red-500/10"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteShelf(shelf);
+                                    }}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Supprimer
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>                  
+                  )
                 ) : (
-                  Array.from(shelvesMap.entries()).map(([shelf, books]) => (
-                    <div key={shelf} className="mb-4">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">{shelf}</Badge>
-                        <span className="text-xs text-gray-100">{books.length} livre(s)</span>
-                      </div>
-                      <ul className="mt-2 grid grid-cols-1 gap-2 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                        {books.map((book) => (
-                          <li key={book.id} className="bg-dark-100 p-2 rounded-xl shadow-inner shadow-light-100/10">
-                            <img 
-                              src={book.imageUrl || "/src/assets/no-book.png"} 
-                              alt={book.title} 
-                              className="rounded-lg w-full h-auto object-cover cursor-pointer hover:opacity-80 transition-opacity" 
-                              onClick={() => onBookSelect(book.id)}
-                            />
-                            <h4 className="text-white font-bold text-sm mt-2 line-clamp-1">{book.title}</h4>
-                          </li>
+                  // Selected shelf books
+                  <div>
+                    {(shelvesMap.get(selectedShelf)?.length || 0) === 0 ? (
+                      <header className="text-center max-w-md mx-auto space-y-3">
+                        <img src="/src/assets/no-mybooks-no.png" className='max-w-xs mx-auto' alt="Book Banner" />
+                        <h4 className="text-white font-semibold">Aucun livre dans cette étagère.</h4>
+                        <p className="text-light-200 text-l">Ajoutez des livres en les créant et en sélectionnant cette étagère.</p>
+                      </header>
+                    ) : (
+                      <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {(shelvesMap.get(selectedShelf) || []).map(book => (
+                          <BookCard
+                            key={book.id}
+                            book={book}
+                            onSelect={onBookSelect}
+                            onEdit={openEditBook}
+                            onDelete={handleDeleteBook}
+                          />
                         ))}
                       </ul>
-                    </div>
-                  ))
+                    )}                    
+                  </div>
                 )}
-              </>
+                  {/* Shelf Rename Dialog */}
+                  <Dialog open={isShelfDialogOpen} onOpenChange={setIsShelfDialogOpen}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Renommer étagère</DialogTitle>
+                        <DialogDescription>
+                          Entrez un nouveau nom pour l'étagère "{dialogShelf?.name}"
+                        </DialogDescription>
+                      </DialogHeader>
+                      <Input
+                        value={newShelfRenameName}
+                        onChange={(e) => setNewShelfRenameName(e.target.value)}
+                        autoFocus
+                        className="mt-2"
+                        placeholder="Nom de l'étagère"
+                        onKeyDown={(e) => e.key === "Enter" && handleShelfRenameConfirm()}
+                      />
+                      <DialogFooter>
+                        <Button 
+                          className="mt-2 rounded-b-md" 
+                          variant="destructive" 
+                          onClick={() => setIsShelfDialogOpen(false)}
+                        >
+                          Annuler
+                        </Button>
+                        <Button 
+                          className="mt-2" 
+                          variant="secondary" 
+                          onClick={handleShelfRenameConfirm}
+                        >
+                          Renommer
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>                  
+              </div>
             )}
+
 
             {activeSection === "lendBorrow" && (
               <>
@@ -358,7 +661,7 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                 <Separator className="my-2 bg-light-100/20" />
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <Card>
-                    <h1 className="flex flex-auto justify-center items-center font-bold">Prêté à</h1>
+                    <h1 className="flex flex-auto justify-center items-center font-bold">Prêté à </h1>
                     {lendList.length === 0 ? (
                       <header className="text-center max-w-md mx-auto space-y-3">
                         <img src="/src/assets/reshot-icon-borrow-book-GJM3PD62HZ.svg" className='max-w-xs mx-auto ' alt="Book Banner" />
@@ -416,7 +719,6 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                       >
                         <Hash className="h-4 w-4" /> My Tags
                       </BreadcrumbLink>
-                      <BreadcrumbSeparator className="text-light-200" />
                     </BreadcrumbItem>
 
                     {selectedTag && (
@@ -477,7 +779,7 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                               <span>{tag}</span>
                               <span className="text-xs text-gray-100 font-semibold">{books.length} livre(s)</span>
                             </div>
-
+                            <div className="text-light-200 hover:bg-light-100/10 focus:bg-light-100/10">
                             {/* Dropdown Trigger */}
                             <DropdownDot
                               onRenameClick={() => {
@@ -487,6 +789,7 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                               }}
                               onDeleteClick={() => handleDeleteTag(tag)}
                             />
+                            </div>
                           </div>
                         </li>
                       ))}
@@ -513,11 +816,47 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                         <Button className="mt-2" variant="aurora" onClick={handleRenameConfirm}>Renommer</Button>
                       </DialogFooter>
                     </DialogContent>
-                  </Dialog>  
+                  </Dialog>
               </div>              
             )}
           </div>
         </div>
+        {/* --- Floating Add Shelf FAB (only when in shelves section) --- */}
+        {activeSection === "shelves" && (
+          <>
+            <button
+              aria-label="Ajouter une étagère"
+              onClick={() => setIsAddShelfDialogOpen(true)}
+              className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full shadow-xl bg-gradient-to-br from-[#AB8BFF] to-[#7C5CFF] flex items-center justify-center text-white"
+            >
+              <Plus className="h-4 w-6" />
+            </button>
+
+            <Dialog open={isAddShelfDialogOpen} onOpenChange={setIsAddShelfDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Créer une nouvelle étagère</DialogTitle>
+                  <DialogDescription>Donnez un nom à votre étagère.</DialogDescription>
+                </DialogHeader>
+
+                <div className="mt-2">
+                  <Input
+                    placeholder="Nom de l'étagère (Ex: Fantasy, Auteurs A-L)"
+                    value={newShelfName}
+                    onChange={(e) => setNewShelfName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddShelfConfirm()}
+                    autoFocus
+                  />
+                </div>
+
+                <DialogFooter>
+                  <Button variant="destructive" className="mt-2 rounded-b-md" onClick={() => { setIsAddShelfDialogOpen(false); setNewShelfName("") }}>Annuler</Button>
+                  <Button variant="secondary" className="mt-2 rounded-b-md" onClick={handleAddShelfConfirm}>Créer</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </>
+        )}
       </SidebarInset>
     </SidebarProvider>
     

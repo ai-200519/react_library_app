@@ -1,0 +1,17 @@
+
+services:
+  db:
+    image: postgres:latest
+    restart: always
+    container_name: server-db
+    environment:
+      POSTGRES_USER: ayman
+      POSTGRES_PASSWORD: 2005
+      POSTGRES_DB: library_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:

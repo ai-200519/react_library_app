@@ -1,19 +1,8 @@
-import { MoreHorizontal } from "lucide-react"
+import { Edit, MoreHorizontal, Trash, Trash2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { toast } from "sonner"
 
-/**
- * Reusable 3-dots dropdown menu for Tags or Shelves
- *
- * @param {string} type - "tag" | "shelf"
- * @param {string} name - the tag or shelf name
- * @param {Array} userBooks - all books
- * @param {Function} setUserBooks - state setter
- */
+import { Button } from "@/components/ui/button"
+
 export default function DropdownDot({ onRenameClick, onDeleteClick }) {
     return (
       <DropdownMenu>
@@ -23,8 +12,14 @@ export default function DropdownDot({ onRenameClick, onDeleteClick }) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onRenameClick}>Renommer</DropdownMenuItem>
-          <DropdownMenuItem onClick={onDeleteClick}>Supprimer</DropdownMenuItem>
+          <DropdownMenuItem className="text-light-200 hover:bg-light-100/10 focus:bg-light-100/10" onClick={onRenameClick}>
+          <Edit className="mr-2 h-4 w-4" />          
+            Renommer
+          </DropdownMenuItem>
+          <DropdownMenuItem className="text-red-400 hover:bg-red-500/10 focus:bg-red-500/10" onClick={onDeleteClick}>
+          <Trash2 className="mr-2 h-4 w-4" />          
+            Supprimer
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     )

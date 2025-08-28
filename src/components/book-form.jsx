@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup } from "@/components/ui/select"
 import { formatISBN } from '@/lib/isbn'
 
-const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange }, ref) {
+const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange, shelves=[] }, ref) {
   const [details, setDetails] = useState({
     title: "",
     series: "",
@@ -25,7 +25,7 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange },
     pagesRead: 0,
     dateStarted: "",
     dateFinished: "",
-    shelves: [],
+    shelfId : "",
     shelfInput: "",
     tags: [],
     tagInput: "",
@@ -55,7 +55,10 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange },
         pagesRead: book.meta?.pagesRead || 0,
         dateStarted: book.meta?.dateStarted || "",
         dateFinished: book.meta?.dateFinished || "",
-        shelves: book.meta?.shelves || [],
+        // FIX: Handle shelves array properly - take first shelf ID or empty string
+        shelves: (book.meta?.shelves && Array.isArray(book.meta.shelves) && book.meta.shelves.length > 0) 
+          ? book.meta.shelves[0] 
+          : "",
         shelfInput: "",
         tags: book.meta?.tags || [],
         tagInput: "",
@@ -82,19 +85,6 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange },
     })
   }
 
-  const handleAddShelf = () => {
-    const name = (notations.shelfInput || "").trim()
-    if (!name) return
-    if (!notations.shelves.includes(name)) {
-      setNotations((p) => ({ ...p, shelves: [...p.shelves, name], shelfInput: "" }))
-    } else {
-      setNotations((p) => ({ ...p, shelfInput: "" }))
-    }
-  }
-
-  const removeShelf = (name) => {
-    setNotations((p) => ({ ...p, shelves: p.shelves.filter((s) => s !== name) }))
-  }
 
   const handleAddTag = () => {
     let t = (notations.tagInput || "").trim()
@@ -170,6 +160,9 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange },
   }, [canSave, onCanSaveChange])
 
   const buildBook = () => {
+    const shelfId = notations.shelves || ""
+    const shelfName = shelves.find((s) => s.id === shelfId)?.name || ""
+    
     return {
       id: book?.id || `user-${Date.now()}`,
       title: details.title.trim(),
@@ -179,21 +172,21 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange },
       isbn: details.isbn,
       genre: details.genre || "Non specifiee",
       description: details.description || "",
-      imageUrl: details.coverUrl || null,
+      imageUrl: details.coverUrl || "\\src\\assets\\no-book.png",
       language: details.language || "", 
       pages: totalPages,
       series: details.series || "",
       volume: details.volume || "",
       meta: {
         ...notations,
-        shelves: [...notations.shelves],
+        shelves: shelfId ? [shelfId] : [],
+        shelfName: shelfName,
         tags: [...notations.tags],
         dateAdded: notations.dateAdded || new Date().toISOString(),
       },
       rating: (Math.random() * 2 + 3).toFixed(1),
     }
   }
-
   const submit = () => {
     const { ok, errors: latestErrors } = validateForm()
     if (!ok) return { ok: false, errors: latestErrors }
@@ -220,8 +213,7 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange },
       pagesRead: 0,
       dateStarted: "",
       dateFinished: "",
-      shelves: [],
-      shelfInput: "",
+      shelfId: "",  
       tags: [],
       tagInput: "",
       lendTo: "",
@@ -362,22 +354,31 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange },
             <div className="flex items-center gap-2">
               <div className="flex-1">
                 <label className="text-xs text-light-200">Étagères</label>
-                <Input value={notations.shelfInput} onChange={(e) => setNotations((p) => ({ ...p, shelfInput: e.target.value }))} placeholder="Ex: Salon, Pile à lire..." />
+                <Select
+                  value={notations.shelves || ""}
+                  onValueChange={(value) => setNotations((p) => ({ ...p, shelves: value }))}
+                > 
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Choisissez une étagère" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {shelves.map((shelf) => (
+                        <SelectItem key={shelf.id} value={shelf.id}>
+                          {shelf.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
-              <Button variant="outline" size="sm" onClick={handleAddShelf}>Ajouter</Button>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {notations.shelves.map((s) => (
-                <Badge key={s} variant="secondary" className="cursor-default">
-                  {s}
-                  <button className="ml-1 text-xs" onClick={() => removeShelf(s)}>×</button>
-                </Badge>
-              ))}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
             </div>
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <div className="flex-1">
+              <div className="flex flex-1 justify-around items-center gap-2 ">
                 <label className="text-xs text-light-200">Tags</label>
                 <Input value={notations.tagInput} onChange={(e) => setNotations((p) => ({ ...p, tagInput: e.target.value }))} placeholder="#tag" />
               </div>
@@ -395,7 +396,7 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange },
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-xs text-light-200">Prêté à</label>
-              <Input value={notations.lendTo} onChange={(e) => setNotations((p) => ({ ...p, lendTo: e.target.value }))} placeholder="Nom" />
+              <Input value={notations.lendTo} onChange={(e) => setNotations((p) => ({ ...p, lendTo: e.target.value }))} placeholder="Nom" />  
             </div>
             <div>
               <label className="text-xs text-light-200">Emprunté par</label>
