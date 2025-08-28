@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup } from "@/components/ui/select"
+import { formatISBN } from '@/lib/isbn'
 
 const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange }, ref) {
   const [details, setDetails] = useState({
@@ -116,57 +117,30 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange },
     const cleanISBN = (isbn || "").replace(/[^0-9Xx]/g, "").toUpperCase()
 
     if (cleanISBN.length === 10) {
-      let sum = 0
-      for (let i = 0; i < 9; i++) {
-        sum += Number.parseInt(cleanISBN[i]) * (10 - i)
-      }
-      const checkDigit = cleanISBN[9] === "X" ? 10 : Number.parseInt(cleanISBN[9])
-      return (sum + checkDigit) % 11 === 0
+      return /^[0-9]{9}[0-9X]$/.test(cleanISBN)
     }
 
     if (cleanISBN.length === 13) {
-      const prefix = cleanISBN.substring(0, 3)
-      if (prefix !== "978" && prefix !== "979") {
-        return false
-      }
-      let sum = 0
-      for (let i = 0; i < 12; i++) {
-        sum += Number.parseInt(cleanISBN[i]) * (i % 2 === 0 ? 1 : 3)
-      }
-      const calculatedCheckDigit = (10 - (sum % 10)) % 10
-      const providedCheckDigit = Number.parseInt(cleanISBN[12])
-      return calculatedCheckDigit === providedCheckDigit
-    }
+      return /^(978|979)[0-9]{10}$/.test(cleanISBN)
+    } 
 
     return false
   }
 
-  const formatISBN = (value) => {
-    const cleanValue = (value || "").replace(/[^0-9Xx]/g, "").toUpperCase()
 
-    if (cleanValue.length >= 3 && (cleanValue.startsWith("978") || cleanValue.startsWith("979"))) {
-      let formatted = cleanValue.substring(0, 3)
-      if (cleanValue.length > 3) formatted += "-" + cleanValue.substring(3, 4)
-      if (cleanValue.length > 4) formatted += "-" + cleanValue.substring(4, 7)
-      if (cleanValue.length > 7) formatted += "-" + cleanValue.substring(7, 12)
-      if (cleanValue.length > 12) formatted += "-" + cleanValue.substring(12, 13)
-      return formatted
-    }
-
-    if (cleanValue.length <= 10) {
-      let formatted = cleanValue.substring(0, 1)
-      if (cleanValue.length > 1) formatted += "-" + cleanValue.substring(1, 3)
-      if (cleanValue.length > 3) formatted += "-" + cleanValue.substring(3, 9)
-      if (cleanValue.length > 9) formatted += "-" + cleanValue.substring(9, 10)
-      return formatted
-    }
-
-    return cleanValue
-  }
 
   const handleISBNChange = (value) => {
     const clean = value.replace(/[^0-9Xx]/g, "").toUpperCase()
     setDetails((p) => ({ ...p, isbn: clean }))
+
+    if (clean && !validateISBN(clean)){
+      setErrors((prev) => ({...prev, isbn: "Format ISBN Invalide."}) )
+    } else {
+      setErrors((prev) => {
+        const { isbn, ...rest } = prev
+        return rest
+      })
+    }
   }
   
   const validateForm = () => {

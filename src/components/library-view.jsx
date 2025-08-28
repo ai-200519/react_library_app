@@ -509,8 +509,8 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                         onKeyDown={(e) => e.key === "Enter" && handleRenameConfirm()}
                       />
                       <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Annuler</Button>
-                        <Button onClick={handleRenameConfirm}>Renommer</Button>
+                        <Button className="mt-2 rounded-b-md" variant="destructive" onClick={() => setIsDialogOpen(false)}>Annuler</Button>
+                        <Button className="mt-2" variant="aurora" onClick={handleRenameConfirm}>Renommer</Button>
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>  
