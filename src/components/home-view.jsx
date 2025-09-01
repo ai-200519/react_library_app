@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {Search, Loader2, ChevronLeft, ChevronRight, Globe, CalendarFold, PenTool, Accessibility, Plus, Check, BookOpen, LibraryBig, BookPlus, Bookmark, BookmarkCheck } from "lucide-react"
+import {Search, Loader2, ChevronLeft, ChevronRight, Globe, CalendarFold, PenTool, Accessibility, Plus, Check, BookOpen, LibraryBig, BookPlus, Bookmark, BookmarkCheck, BadgeInfo } from "lucide-react"
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/dialog"
 
 import ApiService from '../services/api'
+import { Badge } from "./ui/badge"
+import { formatISBN } from '@/lib/isbn'
 
 const HomeView = () => {
   const [searchTerm, setSearchTerm] = useState("")
@@ -146,7 +148,9 @@ const HomeView = () => {
         const isExpired = Date.now() - Number.parseInt(cacheTimestamp) > CACHE_DURATION
         if (!isExpired) {
           console.log("Using cached OpenLibrary books")
-          setOpenLibraryBooks(JSON.parse(cachedBooks))
+          const parsedBooks = JSON.parse(cachedBooks)
+          console.log("Sample book from cache:", parsedBooks[0])
+          setOpenLibraryBooks(parsedBooks)
           return
         }
       }
@@ -158,19 +162,37 @@ const HomeView = () => {
           "https://openlibrary.org/search.json?q=bestseller&limit=800",
         )
         const data = await response.json()
-        const formattedBooks = data.docs.map((book, index) => ({
-          id: `ol-${book.key?.replace("/works/", "") || index}`,
-          title: book.title || "Titre non disponible",
-          author: book.author_name?.length > 1 ? book.author_name.join(", ") : book.author_name?.[0] || "Auteur inconnu",
-          publishedYear: book.first_publish_year || new Date().getFullYear(),
-          isbn: book.isbn?.[0] || "",
-          genre: book.subject?.[0] || "Non spécifiée",
-          description: `Livre populaire de ${book.author_name || "auteur inconnu"}`,
-          language: book.language?.[0] || "",
-          imageUrl: book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg` : null,
-          rating: (Math.random() * 2 + 3).toFixed(1), // Random rating between 3.0-5.0
-          workKey: book.key, // Store the work key for description fetching
-        }))
+        const formattedBooks = data.docs.map((book, index) => {
+          const formattedBook = {
+            id: `ol-${book.key?.replace("/works/", "") || index}`,
+            title: book.title || "Titre non disponible",
+            author: book.author_name?.length > 1 ? book.author_name.join(", ") : book.author_name?.[0] || "Auteur inconnu",
+            publishedYear: book.first_publish_year || new Date().getFullYear(),
+            isbn: (() => {
+              const rawIsbn = book.isbn?.[0] || book.isbn_13?.[0] || book.isbn_10?.[0]
+              if (!rawIsbn || rawIsbn.trim() === "") return null
+              const cleaned = rawIsbn.replace(/[^0-9Xx]/g, "").toUpperCase()
+              return cleaned.length > 0 ? cleaned : null
+            })(),
+            genre: book.subject?.[0] || "Non spécifiée",
+            description: `Livre populaire de ${book.author_name || "auteur inconnu"}`,
+            language: book.language?.[0] || "",
+            imageUrl: book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg` : null,
+            rating: (Math.random() * 2 + 3).toFixed(1), // Random rating between 3.0-5.0
+            workKey: book.key, // Store the work key for description fetching
+          }
+          
+          // Debug first few books
+          if (index < 3) {
+            console.log(`Book ${index + 1}:`, {
+              title: formattedBook.title,
+              rawIsbn: book.isbn?.[0] || book.isbn_13?.[0] || book.isbn_10?.[0],
+              cleanedIsbn: formattedBook.isbn
+            })
+          }
+          
+          return formattedBook
+        })
 
         localStorage.setItem("openLibraryBooks", JSON.stringify(formattedBooks))
         localStorage.setItem("openLibraryBooksTimestamp", Date.now().toString())
@@ -529,7 +551,14 @@ const HomeView = () => {
                     {trendingBooks.map((book, index) => (
                       <li key={book.id}>
                         <p>{index + 1}</p>
-                        <img  src={book.imageUrl || "/src/assets/no-book.png"} className="rounded-lg object-cover cursor-pointer hover:opacity-80 mb-2 group-hover:scale-105 transition-transform duration-200" alt={book.title} />
+                        <div className="relative group">
+                          <img 
+                            src={book.imageUrl || "/src/assets/no-book.png"} 
+                            className="rounded-lg object-cover cursor-pointer hover:opacity-80 mb-2 group-hover:scale-105 transition-transform duration-200" 
+                            alt={book.title}
+                            onClick={() => handleBookClick(book)}
+                          />
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -652,8 +681,8 @@ const HomeView = () => {
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <BookOpen className="h-5 w-5" />
-                Détails du livre
+                <BadgeInfo className="h-5 w-5" />
+                Infos
               </DialogTitle>
               <DialogDescription>
                 Consultez les informations du livre et ajoutez-le à votre bibliothèque
@@ -661,7 +690,7 @@ const HomeView = () => {
             </DialogHeader>
             
             {selectedBook && (
-              <div className="space-y-6">
+              <div className="mt-4 space-y-6">
                 {/* Book Cover and Basic Info */}
                 <div className="flex gap-6">
                   <div className="flex-shrink-0">
@@ -693,18 +722,26 @@ const HomeView = () => {
                     </div>
                     
                     {selectedBook.genre && (
-                      <div>
-                        <Label className="text-light-200 text-sm">Genre</Label>
-                        <p className="text-white">{selectedBook.genre}</p>
+                      <div className="flex items-center mb-0.5 gap-2">
+                        <Label className="text-light-200 text-lg">Genre</Label>
+                        <Badge variant="outline" className="ml-1.5 text-light-200">{selectedBook.genre}</Badge>
                       </div>
                     )}
-                    
-                    {selectedBook.isbn && (
-                      <div>
-                        <Label className="text-light-200 text-sm">ISBN</Label>
-                        <p className="text-white font-mono text-sm">{selectedBook.isbn}</p>
+                                        
+                    {selectedBook.language && (
+                      <div className="flex items-center mt-0.5 gap-1">
+                        <Label className="text-light-200 text-lg">Langue</Label>
+                        <Badge variant="outline" className="ml-1.5 text-light-200">{selectedBook.language}</Badge>
                       </div>
                     )}
+
+                    {selectedBook.isbn && selectedBook.isbn.trim() && (
+                      <div className="flex items-center gap-1">
+                        <Label className="text-light-200 text-lg">ISBN</Label>
+                        <Badge variant="outline" className="ml-1.5 text-light-200">{formatISBN(selectedBook.isbn)}</Badge>
+                      </div>
+                    )}
+
                   </div>
                 </div>
 
@@ -723,7 +760,7 @@ const HomeView = () => {
                   </Label>
                   <Select value={selectedShelf} onValueChange={setSelectedShelf}>
                     <SelectTrigger id="shelf-select" className="w-full">
-                      <SelectValue>
+                      <SelectValue placeholder="Sélectionner une étagère...">
                         {selectedShelf === "none" ? "Aucune étagère" : 
                          shelves.find(s => s.id === selectedShelf)?.name || "Sélectionner une étagère..."}
                       </SelectValue>
@@ -752,14 +789,15 @@ const HomeView = () => {
             )}
 
             <DialogFooter>
-              <Button variant="outline" onClick={handleCloseDialog}>
+              <Button className="mt-2" variant="destructive" onClick={handleCloseDialog}>
                 Annuler
               </Button>
               {selectedBook && !isBookInLibrary(selectedBook) && (
                 <Button 
                   onClick={handleAddToLibrary}
                   disabled={addingBooks.has(selectedBook?.id)}
-                  className="gap-2"
+                  className="mt-2 gap-2"
+                  variant="outline"
                 >
                   {addingBooks.has(selectedBook?.id) ? (
                     <>

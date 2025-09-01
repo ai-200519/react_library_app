@@ -29,9 +29,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import BookForm from './book-form'
 import { Progress } from './ui/progress'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './ui/breadcrumb'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem, } from './ui/dropdown-menu'
 import DropdownDot from './DropdownDot'
 import BookCard from './book-card'
+
+import { Search, Filter, X } from "lucide-react"
 
 const LibraryView = ({ onBookSelect, onBack }) => {
   // State management
@@ -65,7 +67,75 @@ const LibraryView = ({ onBookSelect, onBack }) => {
 
   // API Service - we'll implement this inline for now
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+
+  const [searchTerm, setSearchTerm] = useState("")
+  const [filterOptions, setFilterOptions] = useState({
+    status: "all", // all, read, unread, reading
+    sortBy: "title", // title, author, dateAdded, rating
+    sortOrder: "asc", // asc, desc
+  })
   
+  const filterBooks = (books) => {
+    let filtered = books.filter(book => {
+      // Search term filtering
+      const matchesSearch = 
+        !searchTerm || 
+        book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (book.series && book.series.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (book.meta?.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
+      
+      // Status filtering
+      let matchesStatus = true
+      if (filterOptions.status !== "all") {
+        if (filterOptions.status === "read") {
+          matchesStatus = book.meta?.dateFinished !== null
+        } else if (filterOptions.status === "unread") {
+          matchesStatus = book.meta?.dateStarted === null && book.meta?.dateFinished === null
+        } else if (filterOptions.status === "reading") {
+          matchesStatus = book.meta?.dateStarted !== null && book.meta?.dateFinished === null
+        }
+      }
+      
+      return matchesSearch && matchesStatus
+    })
+    
+    // Sorting
+    filtered.sort((a, b) => {
+      let valueA, valueB
+      
+      switch (filterOptions.sortBy) {
+        case "title":
+          valueA = a.title.toLowerCase()
+          valueB = b.title.toLowerCase()
+          break
+        case "author":
+          valueA = a.author.toLowerCase()
+          valueB = b.author.toLowerCase()
+          break
+        case "dateAdded":
+          valueA = new Date(a.meta?.dateAdded || 0)
+          valueB = new Date(b.meta?.dateAdded || 0)
+          break
+        case "rating":
+          valueA = a.rating || 0
+          valueB = b.rating || 0
+          break
+        default:
+          valueA = a.title.toLowerCase()
+          valueB = b.title.toLowerCase()
+      }
+      
+      if (filterOptions.sortOrder === "asc") {
+        return valueA < valueB ? -1 : valueA > valueB ? 1 : 0
+      } else {
+        return valueA > valueB ? -1 : valueA < valueB ? 1 : 0
+      }
+    })
+    
+    return filtered
+  }
+
   const getDeviceId = () => {
     let deviceId = localStorage.getItem('deviceId')
     if (!deviceId) {
@@ -827,6 +897,82 @@ const LibraryView = ({ onBookSelect, onBack }) => {
               </AlertDescription>
             </Alert>
           )}
+
+          <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-dark-100 rounded-lg">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-light-200" />
+              <Input
+                placeholder="Rechercher un livre par titre, auteur, shelf ou tag..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 text-light-200 border-light-100/20"
+              />
+            </div>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="muted" className="bg-dark-200 border-light-100/20">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filtrer & Trier
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 bg-dark-100 border-light-100/20">
+                <DropdownMenuLabel>Filtrer par statut</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup 
+                  value={filterOptions.status} 
+                  onValueChange={(value) => setFilterOptions(prev => ({...prev, status: value}))}
+                >
+                  <DropdownMenuRadioItem value="all">Tous les livres</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="read">Lus</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="unread">Non lus</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="reading">En cours</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+                
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Trier par</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup 
+                  value={filterOptions.sortBy} 
+                  onValueChange={(value) => setFilterOptions(prev => ({...prev, sortBy: value}))}
+                >
+                  <DropdownMenuRadioItem value="title">Titre</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="author">Auteur</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="dateAdded">Date d'ajout</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="rating">Note</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+                
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Ordre</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup 
+                  value={filterOptions.sortOrder} 
+                  onValueChange={(value) => setFilterOptions(prev => ({...prev, sortOrder: value}))}
+                >
+                  <DropdownMenuRadioItem value="asc">Croissant (A-Z)</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="desc">Décroissant (Z-A)</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
+            {(searchTerm || filterOptions.status !== "all") && (
+              <Button 
+                variant="ghost" 
+                onClick={() => {
+                  setSearchTerm("")
+                  setFilterOptions({
+                    status: "all",
+                    sortBy: "title",
+                    sortOrder: "asc"
+                  })
+                }}
+                className="text-light-200 hover:text-white"
+              >
+                Réinitialiser
+                <X className="h-4 w-4 ml-2" />
+              </Button>
+            )}
+          </div>          
 
           <div className='text-amber-50'>
             {isLoading ? (

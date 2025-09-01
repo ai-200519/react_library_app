@@ -76,7 +76,7 @@ export function DropdownMenuRadioItem({ className, children, ...props }) {
     <DropdownMenuPrimitive.RadioItem
       data-slot="dropdown-menu-radio-item"
       className={cn(
-        "relative flex items-center gap-2 px-2 py-1.5 rounded-md text-sm cursor-pointer select-none outline-none " +
+        "relative flex items-center gap-2 px-2 py-1.5 rounded-md text-sm cursor-pointer select-none outline-none pl-8 " +
         "focus:bg-sidebar-accent focus:text-sidebar-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className
       )}
@@ -84,7 +84,7 @@ export function DropdownMenuRadioItem({ className, children, ...props }) {
     >
       <span className="absolute left-2 flex items-center justify-center pointer-events-none">
         <DropdownMenuPrimitive.ItemIndicator>
-          <CircleIcon className="w-3 h-3 fill-current" />
+          <CircleIcon className="w-2 h-2 fill-current" />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
       {children}
@@ -139,6 +139,16 @@ export function DropdownMenuSubContent({ className, ...props }) {
         "bg-sidebar text-sidebar-foreground border border-sidebar-border rounded-lg shadow-lg p-1.5 min-w-[8rem]",
         className
       )}
+      {...props}
+    />
+  );
+}
+
+export function DropdownMenuRadioGroup({ className, ...props }) {
+  return (
+    <DropdownMenuPrimitive.RadioGroup
+      data-slot="dropdown-menu-radio-group"
+      className={cn("p-1", className)}
       {...props}
     />
   );
