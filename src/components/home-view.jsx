@@ -3,6 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {Search, Loader2, ChevronLeft, ChevronRight, Globe, CalendarFold, PenTool, Accessibility, Plus, Check, BookOpen, LibraryBig, BookPlus, Bookmark, BookmarkCheck } from "lucide-react"
 import { toast } from 'sonner'
 import {
@@ -36,6 +44,12 @@ const HomeView = () => {
   const [userLibraryBooks, setUserLibraryBooks] = useState([])
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false)
   const [addingBooks, setAddingBooks] = useState(new Set()) // Track which books are being added
+
+  // State for book dialog
+  const [selectedBook, setSelectedBook] = useState(null)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [selectedShelf, setSelectedShelf] = useState("")
+  const [shelves, setShelves] = useState([]) // User's shelves
 
   const allBooks = useMemo(() => {
     return [...openLibraryBooks]
@@ -105,6 +119,22 @@ const HomeView = () => {
     loadUserLibrary()
   }, [])
 
+  // Load user's shelves
+  useEffect(() => {
+    const loadShelves = () => {
+      const savedShelves = localStorage.getItem("userShelves")
+      if (savedShelves) {
+        const parsedShelves = JSON.parse(savedShelves)
+        setShelves(parsedShelves.length > 0 ? parsedShelves : [{ id: "default", name: "Ma Bibliothèque" }])
+      } else {
+        // Set default shelf if no shelves exist
+        setShelves([{ id: "default", name: "Ma Bibliothèque" }])
+      }
+    }
+
+    loadShelves()
+  }, [])
+
   useEffect(() => {
     const fetchOpenLibraryBooks = async () => {
       const cachedBooks = localStorage.getItem("openLibraryBooks")
@@ -133,7 +163,7 @@ const HomeView = () => {
           title: book.title || "Titre non disponible",
           author: book.author_name?.length > 1 ? book.author_name.join(", ") : book.author_name?.[0] || "Auteur inconnu",
           publishedYear: book.first_publish_year || new Date().getFullYear(),
-          isbn: book.isbn?.[0].split("-") || "",
+          isbn: book.isbn?.[0] || "",
           genre: book.subject?.[0] || "Non spécifiée",
           description: `Livre populaire de ${book.author_name || "auteur inconnu"}`,
           language: book.language?.[0] || "",
@@ -269,6 +299,7 @@ const HomeView = () => {
   const normalize = (value) => (value ? value.toLowerCase() : "")
 
   const isBookInLibrary = (book) => {
+    if (!book) return false
     return userLibraryBooks.some(userBook => 
       normalize(userBook.title) === normalize(book.title) &&
       normalize(userBook.author) === normalize(book.author)
@@ -276,31 +307,42 @@ const HomeView = () => {
   }
 
 
-  // Add book to user's library
-  const handleAddToLibrary = async (book) => {
-    if (isBookInLibrary(book)) {
+  // Open book dialog
+  const handleBookClick = (book) => {
+    setSelectedBook(book)
+    setSelectedShelf("")
+    setIsDialogOpen(true)
+  }
+
+  // Add book to user's library from dialog
+  const handleAddToLibrary = async () => {
+    if (!selectedBook) return
+    
+    if (isBookInLibrary(selectedBook)) {
       toast.info("Ce livre est déjà dans votre bibliothèque")
+      setIsDialogOpen(false)
       return
     }
 
     try {
-      setAddingBooks(prev => new Set(prev).add(book.id))
+      setAddingBooks(prev => new Set(prev).add(selectedBook.id))
       
       // Transform OpenLibrary book to our format
       const bookData = {
-        title: book.title  || "Titre non disponible",
-        author: book.author || "Auteur Inconnu " ,
-        publishedYear: book.publishedYear || new Date().getFullYear(),
-        isbn: book.isbn,
-        genre: book.genre ||"Non spécifiée",
-        description: book.description,
-        imageUrl: book.imageUrl,
-        rating: book.rating,
-        workKey: book.workKey,
+        title: selectedBook.title || "Titre non disponible",
+        author: selectedBook.author || "Auteur Inconnu",
+        publishedYear: selectedBook.publishedYear || new Date().getFullYear(),
+        isbn: selectedBook.isbn || "",
+        genre: selectedBook.genre || "Non spécifiée",
+        description: selectedBook.description || "",
+        imageUrl: selectedBook.imageUrl || "",
+        rating: selectedBook.rating || "0.0",
+        workKey: selectedBook.workKey || "",
+        bookshelf: selectedShelf && selectedShelf !== "none" ? parseInt(selectedShelf) : null, // Add selected shelf ID
         meta: {
           pagesRead: 0,
           dateAdded: new Date().toISOString(),
-          shelves: [],
+          shelves: selectedShelf && selectedShelf !== "none" ? [parseInt(selectedShelf)] : [],
           tags: [],
         }
       }
@@ -312,8 +354,13 @@ const HomeView = () => {
       setUserLibraryBooks(prev => [...prev, addedBook])
       
       toast.success("Livre ajouté à votre bibliothèque!", {
-        description: `"${book.title}" a été ajouté avec succès`
+        description: `"${selectedBook.title}" a été ajouté avec succès${selectedShelf && selectedShelf !== "none" ? ` à l'étagère "${shelves.find(s => s.id === selectedShelf)?.name}"` : ''}`
       })
+      
+      // Close dialog
+      setIsDialogOpen(false)
+      setSelectedBook(null)
+      setSelectedShelf("")
       
     } catch (error) {
       console.error('Failed to add book to library:', error)
@@ -323,10 +370,17 @@ const HomeView = () => {
     } finally {
       setAddingBooks(prev => {
         const newSet = new Set(prev)
-        newSet.delete(book.id)
+        newSet.delete(selectedBook.id)
         return newSet
       })
     }
+  }
+
+  // Close dialog
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false)
+    setSelectedBook(null)
+    setSelectedShelf("")
   }
 
   return (
@@ -507,35 +561,13 @@ const HomeView = () => {
                               src={book.imageUrl || "/src/assets/no-book.png"} 
                               className="rounded-lg w-fll h-75 object-cover cursor-pointer hover:opacity-80 mb-2 group-hover:scale-105 transition-transform duration-200" 
                               alt={book.title}
-                              onClick={() => !isBookInLibrary(book) && !addingBooks.has(book.id) && handleAddToLibrary(book)}
+                              onClick={() => handleBookClick(book)}
                             />
                             
-                            {/* Floating action button on image */}
-                            {!isBookInLibrary(book) && (
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAddToLibrary(book);
-                                  }}
-                                  disabled={addingBooks.has(book.id)}
-                                  className="h-8 w-8 p-0 rounded-full bg-white/90 hover:bg-white shadow-lg"
-                                >
-                                  {addingBooks.has(book.id) ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <BookPlus className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </div>
-                            )}
-                            
-                            {/* Success indicator when book is in library */}
+                            {/* Status indicator */}
                             {isBookInLibrary(book) && (
                               <div className="absolute top-2 right-2">
-                                <div className="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
+                                <div className="h-8 w-8 rounded-full bg-[#AB8BFF] flex items-center justify-center shadow-lg">
                                   <BookmarkCheck className="h-4 w-4 text-white" />
                                 </div>
                               </div>
@@ -559,34 +591,6 @@ const HomeView = () => {
                             <span className="year">{book.publishedYear}</span>
                           </div>
                           
-                          {/* Alternative Add to Library Button - Icon only */}
-                          <div className="book-actions mt-2 flex justify-center">
-                            {!isBookInLibrary(book) && (
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => handleAddToLibrary(book)}
-                                disabled={addingBooks.has(book.id)}
-                                className="h-8 w-8 p-0 rounded-full hover:bg-primary/10 hover:text-primary"
-                                title="Ajouter à ma bibliothèque"
-                              >
-                                {addingBooks.has(book.id) ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  null
-                                )}
-                              </Button>
-                            )}
-                            {isBookInLibrary(book) && (
-                              <div className="flex flex-auto mt-2 mb-2 items-center gap-1 text-green-500 text-sm">
-                              <div className="flex items-center gap-1 text-green-500 text-sm">
-                                <Check className="h-4 w-4" />
-                                <LibraryBig  className="h-auto w-6" />
-                              </div>
-                              <span>Dans ma bibliothèque</span>
-                              </div>
-                            )}
-                          </div>
                         </li>
                       ))}
                     </ul>
@@ -643,6 +647,136 @@ const HomeView = () => {
         </main>
         </div>              
 
+        {/* Book Details Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5" />
+                Détails du livre
+              </DialogTitle>
+              <DialogDescription>
+                Consultez les informations du livre et ajoutez-le à votre bibliothèque
+              </DialogDescription>
+            </DialogHeader>
+            
+            {selectedBook && (
+              <div className="space-y-6">
+                {/* Book Cover and Basic Info */}
+                <div className="flex gap-6">
+                  <div className="flex-shrink-0">
+                    <img
+                      src={selectedBook.imageUrl || "/src/assets/no-book.png"}
+                      alt={selectedBook.title}
+                      className="w-32 h-48 object-cover rounded-lg border"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-white mb-2">{selectedBook.title}</h3>
+                      <p className="text-light-200 text-sm">
+                        <PenTool className="inline h-4 w-4 mr-1" />
+                        {selectedBook.author}
+                      </p>
+                      {selectedBook.publishedYear && (
+                        <p className="text-light-200 text-sm">
+                          <CalendarFold className="inline h-4 w-4 mr-1" />
+                          {selectedBook.publishedYear}
+                        </p>
+                      )}
+                      {selectedBook.rating && (
+                        <div className="flex items-center gap-1 mt-2">
+                          <img src="/src/assets/star.svg" alt="rating" className="h-4 w-4" />
+                          <span className="text-light-200 text-sm">{selectedBook.rating}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {selectedBook.genre && (
+                      <div>
+                        <Label className="text-light-200 text-sm">Genre</Label>
+                        <p className="text-white">{selectedBook.genre}</p>
+                      </div>
+                    )}
+                    
+                    {selectedBook.isbn && (
+                      <div>
+                        <Label className="text-light-200 text-sm">ISBN</Label>
+                        <p className="text-white font-mono text-sm">{selectedBook.isbn}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Description */}
+                {selectedBook.description && (
+                  <div>
+                    <Label className="text-light-200 text-sm">Description</Label>
+                    <p className="text-white text-sm leading-relaxed">{selectedBook.description}</p>
+                  </div>
+                )}
+
+                {/* Shelf Selection */}
+                <div>
+                  <Label htmlFor="shelf-select" className="text-light-200 text-sm">
+                    Ajouter à une étagère (optionnel)
+                  </Label>
+                  <Select value={selectedShelf} onValueChange={setSelectedShelf}>
+                    <SelectTrigger id="shelf-select" className="w-full">
+                      <SelectValue>
+                        {selectedShelf === "none" ? "Aucune étagère" : 
+                         shelves.find(s => s.id === selectedShelf)?.name || "Sélectionner une étagère..."}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucune étagère</SelectItem>
+                      {shelves.map((shelf) => (
+                        <SelectItem key={shelf.id} value={shelf.id}>
+                          {shelf.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Status */}
+                {selectedBook && isBookInLibrary(selectedBook) && (
+                  <div className="bg-[#AB8BFF]/10 border border-[#AB8BFF]/20 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-green-500">
+                      <Check className="h-4 w-4" />
+                      <span className="font-medium">Ce livre est déjà dans votre bibliothèque</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCloseDialog}>
+                Annuler
+              </Button>
+              {selectedBook && !isBookInLibrary(selectedBook) && (
+                <Button 
+                  onClick={handleAddToLibrary}
+                  disabled={addingBooks.has(selectedBook?.id)}
+                  className="gap-2"
+                >
+                  {addingBooks.has(selectedBook?.id) ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Ajout en cours...
+                    </>
+                  ) : (
+                    <>
+                      <BookPlus className="h-4 w-4" />
+                      Ajouter à ma bibliothèque
+                    </>
+                  )}
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
       </div>
     </>
