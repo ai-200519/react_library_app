@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { ArrowLeft, Pencil, Trash2, Eye, Calendar, BookOpen, Hash, ArrowRightLeft, Star, Clock, Users, MessageSquare, Bookmark, BookmarkCheck, Play, Headphones, Download, Share2, Heart, ThumbsUp, PenTool, Landmark, PartyPopper, Paperclip, LucidePaperclip, ScanBarcode, Languages } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, Eye, Calendar, BookOpen, Hash, ArrowRightLeft, Star, Clock, Users, MessageSquare, Bookmark, BookmarkCheck, Play, Headphones, Download, Share2, Heart, ThumbsUp, PenTool, Landmark, PartyPopper, Paperclip, LucidePaperclip, ScanBarcode, Languages, Loader2, Wifi, WifiOff } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -14,6 +14,7 @@ import { useRef } from "react"
 import { formatISBN } from '@/lib/isbn'
 import { Copy } from "lucide-react"
 import { Textarea } from './ui/textarea'
+import ApiService from '../services/api'
 
 const BookDetailView = ({ bookId, onBack }) => {
   const [book, setBook] = useState(null)
@@ -25,81 +26,214 @@ const BookDetailView = ({ bookId, onBack }) => {
   const [isAddOpen, setIsAddOpen] = useState(false)
   const bookFormRef = useRef(null)
   const [canSaveForm, setCanSaveForm] = useState(false)
-  const [pagesRead, setPagesRead] = useState(book?.meta?.pagesRead || 0)
-
+  const [pagesRead, setPagesRead] = useState(0)
   const [userReview, setUserReview] = useState("")
+  const [shelves, setShelves] = useState([])
+  
+  // Loading and connection states
+  const [isLoading, setIsLoading] = useState(true)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Network status monitoring
   useEffect(() => {
-    // Load user books from localStorage
-    const saved = localStorage.getItem("userBooks")
-    if (saved) {
-      try {
-        const books = JSON.parse(saved)
-        setUserBooks(books)
-        const foundBook = books.find(b => b.id === bookId)
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  // Load book data from API with fallback to localStorage
+  const loadBookData = async () => {
+    try {
+      setIsLoading(true)
+      
+      if (isOnline) {
+        // Try to load from API first
+        const apiBooks = await ApiService.getBooks()
+        const transformedBooks = apiBooks.map(book => ApiService.transformBackendBook(book))
+        setUserBooks(transformedBooks)
+        
+        const foundBook = transformedBooks.find(b => b.id === bookId)
         if (foundBook) {
           setBook(foundBook)
-          // Set initial rating if it exists
+          setPagesRead(foundBook.meta?.pagesRead || 0)
           if (foundBook.userRating) {
             setUserRating(foundBook.userRating)
           }
         }
-      } catch {}
-    }
-  }, [bookId]) 
-
-  
-  useEffect(() => {
-    // Load user books from localStorage
-    const saved = localStorage.getItem("userBooks")
-    if (saved) {
-      try {
-        const books = JSON.parse(saved)
-        setUserBooks(books)
-        const foundBook = books.find(b => b.id === bookId)
+        
+        // Update localStorage as cache
+        localStorage.setItem('userBooks', JSON.stringify(transformedBooks))
+      } else {
+        // Fallback to localStorage
+        const localBooks = JSON.parse(localStorage.getItem('userBooks') || '[]')
+        setUserBooks(localBooks)
+        const foundBook = localBooks.find(b => b.id === bookId)
         if (foundBook) {
           setBook(foundBook)
+          setPagesRead(foundBook.meta?.pagesRead || 0)
+          if (foundBook.userRating) {
+            setUserRating(foundBook.userRating)
+          }
         }
-      } catch {}
+      }
+      
+      // Load shelves
+      if (isOnline) {
+        const apiShelves = await ApiService.getShelves()
+        setShelves(apiShelves)
+      } else {
+        const localShelves = JSON.parse(localStorage.getItem('userShelves') || '[]')
+        setShelves(localShelves)
+      }
+      
+    } catch (error) {
+      console.error('Failed to load book data:', error)
+      // Fallback to localStorage on error
+      const localBooks = JSON.parse(localStorage.getItem('userBooks') || '[]')
+      setUserBooks(localBooks)
+      const foundBook = localBooks.find(b => b.id === bookId)
+      if (foundBook) {
+        setBook(foundBook)
+        setPagesRead(foundBook.meta?.pagesRead || 0)
+      }
+      
+      toast.error("Mode hors ligne", {
+        description: "Impossible de charger les dernières données"
+      })
+    } finally {
+      setIsLoading(false)
     }
-  }, [bookId])
-
-  const openEditBook = (book) => {
-    setEditingBook(book)
-    setIsAddOpen(true)
   }
 
-  const handleDelete = () => {
+  useEffect(() => {
+    loadBookData()
+  }, [bookId, isOnline])
+
+  // Update book progress
+  const updateBookProgress = async (newPagesRead) => {
+    if (!book) return
+    
+    const updatedBook = {
+      ...book,
+      meta: { ...book.meta, pagesRead: newPagesRead }
+    }
+    
+    try {
+      if (isOnline) {
+        await ApiService.updateBook(book.id, updatedBook)
+      }
+      
+      // Update local state
+      setBook(updatedBook)
+      setPagesRead(newPagesRead)
+      
+      // Update userBooks array
+      const updatedBooks = userBooks.map(b => b.id === updatedBook.id ? updatedBook : b)
+      setUserBooks(updatedBooks)
+      localStorage.setItem('userBooks', JSON.stringify(updatedBooks))
+      
+    } catch (error) {
+      console.error('Failed to update progress:', error)
+      // Still update locally even if API fails
+      setBook(updatedBook)
+      setPagesRead(newPagesRead)
+      const updatedBooks = userBooks.map(b => b.id === updatedBook.id ? updatedBook : b)
+      setUserBooks(updatedBooks)
+      localStorage.setItem('userBooks', JSON.stringify(updatedBooks))
+      
+      toast.warning("Progression sauvegardée localement", {
+        description: "Sera synchronisée quand la connexion sera rétablie"
+      })
+    }
+  }
+
+  // Save book changes
+  const handleSaveBook = async (bookData) => {
+    try {
+      setIsSaving(true)
+      let savedBook
+
+      if (isOnline) {
+        const updatedBook = await ApiService.updateBook(editingBook.id, bookData)
+        savedBook = ApiService.transformBackendBook(updatedBook)
+      } else {
+        // Offline mode
+        savedBook = { ...bookData, id: editingBook.id }
+        toast.info("Livre sauvegardé localement", {
+          description: "Sera synchronisé quand la connexion sera rétablie"
+        })
+      }
+      
+      // Update local state
+      const updatedBooks = userBooks.map(b => b.id === savedBook.id ? savedBook : b)
+      setUserBooks(updatedBooks)
+      localStorage.setItem('userBooks', JSON.stringify(updatedBooks))
+      setBook(savedBook)
+      
+      setIsAddOpen(false)
+      setEditingBook(null)
+      bookFormRef.current?.reset()
+      
+      toast.success("Livre mis à jour")
+      
+    } catch (error) {
+      console.error('Failed to save book:', error)
+      toast.error("Erreur lors de la sauvegarde", {
+        description: error.message || "Réessayez plus tard"
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Delete book
+  const handleDelete = async () => {
     if (!book) return
 
     toast(`Supprimer "${book.title}" ?`, {
       description: "Cette action ne peut pas être annulée.",
       action: {
         label: "Supprimer",
-        onClick: () => {
-          const updatedBooks = userBooks.filter(b => b.id !== book.id)
-          setUserBooks(updatedBooks)
-          
-          toast.success("Livre supprimé", {
-            description: `"${book.title}" a été supprimé de votre bibliothèque.`
-          })
-          
-          setTimeout(() => onBack(), 1000)
+        onClick: async () => {
+          try {
+            if (isOnline) {
+              await ApiService.deleteBook(book.id)
+            }
+            
+            // Update local state
+            const updatedBooks = userBooks.filter(b => b.id !== book.id)
+            setUserBooks(updatedBooks)
+            localStorage.setItem('userBooks', JSON.stringify(updatedBooks))
+            
+            toast.success("Livre supprimé", {
+              description: `"${book.title}" a été supprimé de votre bibliothèque.`
+            })
+            
+            setTimeout(() => onBack(), 1000)
+            
+          } catch (error) {
+            console.error('Failed to delete book:', error)
+            toast.error("Erreur lors de la suppression", {
+              description: "Réessayez plus tard"
+            })
+          }
         },
       },
       cancel: {
         label: "Annuler",
-        onClick: () => {
-          toast.dismiss()
-        }
+        onClick: () => toast.dismiss()
       },
       duration: 10000,
     })
   }
-  useEffect(() => {
-    if (book) {
-      setPagesRead(book.meta?.pagesRead || 0)
-    }
-  }, [book])
 
   const submitReview = () => {
     if (userReview.trim()) {
@@ -128,6 +262,17 @@ const BookDetailView = ({ bookId, onBack }) => {
     toast.success(isLiked ? "Like retiré" : "Livre liké")
   }
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-primary flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-white" />
+          <p className="text-white">Chargement du livre...</p>
+        </div>
+      </div>
+    )
+  }
+
   if (!book) {
     return (
       <div className="min-h-screen bg-primary flex items-center justify-center">
@@ -142,22 +287,36 @@ const BookDetailView = ({ bookId, onBack }) => {
     )
   }
 
-  const readingProgress = Math.min((book.meta?.pagesRead || 0) / (book.pages || 1) * 100, 100)
+  const readingProgress = Math.min((pagesRead || 0) / (book.pages || 1) * 100, 100)
 
   return (
     <div className="min-h-screen bg-primary">
-      {/* Enhanced Header with Gradient */}
+      {/* Enhanced Header with Connection Status */}
       <div className="bg-gradient-to-r from-dark-100 via-dark-100 to-dark-100/90 border-b border-light-100/10 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <Button 
-              variant="ghost" 
-              onClick={onBack}
-              className="text-white hover:bg-light-100/20 hover:scale-105 transition-all duration-200"
-            >
-              <ArrowLeft className="h-5 w-5 mr-2" />
-              Retour
-            </Button>
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="ghost" 
+                onClick={onBack}
+                className="text-white hover:bg-light-100/20 hover:scale-105 transition-all duration-200"
+              >
+                <ArrowLeft className="h-5 w-5 mr-2" />
+                Retour
+              </Button>
+              
+              {/* Connection status indicator */}
+              <div className="flex items-center gap-2">
+                {isOnline ? (
+                  <Wifi className="h-4 w-4 text-green-400" title="En ligne" />
+                ) : (
+                  <WifiOff className="h-4 w-4 text-red-400" title="Hors ligne" />
+                )}
+                <span className="text-xs text-light-200">
+                  {isOnline ? "En ligne" : "Hors ligne"}
+                </span>
+              </div>
+            </div>
             
             <div className="flex items-center gap-2">
               <Button 
@@ -177,6 +336,7 @@ const BookDetailView = ({ bookId, onBack }) => {
                 size="sm"
                 onClick={handleEdit}
                 className="text-white border-light-100/30 hover:bg-light-100/20 hover:scale-105 transition-all duration-200"
+                disabled={isSaving}
               >
                 <Pencil className="h-4 w-4 mr-2" />
                 Modifier
@@ -211,7 +371,6 @@ const BookDetailView = ({ bookId, onBack }) => {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 </div>  
-      
               </div>
             </div>
 
@@ -240,7 +399,7 @@ const BookDetailView = ({ bookId, onBack }) => {
                   <div className="flex items-center gap-1 ">
                     <Landmark className="h-full w-fll mr-2 text-white" />                  
                     <Badge variant="outline" className="text-light-200 border-light-100/30 text-lg">
-                      Série: {book.series != "" ? book.series : "non specifiee" } {book.volume && `(Vol. ${book.volume})`}
+                      Série: {book.series != "" ? book.series : "Non spécifiée" } {book.volume && `(Vol. ${book.volume})`}
                     </Badge>
                   </div>
                   {book.language &&
@@ -252,7 +411,6 @@ const BookDetailView = ({ bookId, onBack }) => {
                   </div>
                   }
                 </div>
-
 
                 {/* Enhanced Stats Row */}
                 <div className="flex flex-wrap items-center gap-4 text-light-200 mb-4">
@@ -284,6 +442,7 @@ const BookDetailView = ({ bookId, onBack }) => {
                     <span>{Math.floor(Math.random() * 50000) + 5000} vues </span>
                   </div>
                 </div>
+                
                 <div className="flex flex-wrap items-center gap-4 text-light-200 mb-4">
                   {book.isbn ? (
                     <div className="flex items-center gap-2">
@@ -299,6 +458,7 @@ const BookDetailView = ({ bookId, onBack }) => {
                     <Badge variant="outline" className ="text-lg ml-1.5">N/A</Badge>
                   )}
                 </div>
+                
                 {/* Enhanced Rating Display */}
                 <div className="flex items-center justify-center lg:justify-start gap-2 mb-4">
                   <div className="flex items-center gap-1">
@@ -318,6 +478,7 @@ const BookDetailView = ({ bookId, onBack }) => {
                     {book.rating} ({Math.floor(Math.random() * 1000) + 100} avis)
                   </span>
                 </div>
+                
                 {/* Genre Tags */}
                 <div className="flex flex-wrap gap-2 mb-6">
                   <Badge className="bg-gradient-to-r from-[#D6C7FF] to-[#AB8BFF] text-primary">
@@ -351,18 +512,7 @@ const BookDetailView = ({ bookId, onBack }) => {
                       value={pagesRead}
                       onChange={(e) => {
                         const newPages = Number(e.target.value)
-                        setPagesRead(newPages)
-                        // persist inside book + localStorage
-                        const updatedBook = {
-                          ...book,
-                          meta: { ...book.meta, pagesRead: newPages }
-                        }
-                        setBook(updatedBook)
-                        const updatedBooks = userBooks.map((b) =>
-                          b.id === updatedBook.id ? updatedBook : b
-                        )
-                        setUserBooks(updatedBooks)
-                        localStorage.setItem("userBooks", JSON.stringify(updatedBooks))
+                        updateBookProgress(newPages)
                       }}
                       className="w-full accent-[#AB8BFF] mb-2"
                     />
@@ -529,6 +679,8 @@ const BookDetailView = ({ bookId, onBack }) => {
             </Card>
           </TabsContent>
         </Tabs>
+        
+        {/* Edit Book Sheet */}
         <Sheet open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) setEditingBook(null) }}>
           <SheetContent side="right" className="bg-primary text-white sm:max-w-md" aria-describedby="book-form-desc">
             <SheetHeader>
@@ -541,36 +693,42 @@ const BookDetailView = ({ bookId, onBack }) => {
               key={editingBook ? `edit-${editingBook.id}` : 'new'}
               ref={bookFormRef}
               book={editingBook || undefined}
+              shelves={shelves}
               onCanSaveChange={setCanSaveForm}
-              onSave={(newBook) => {
-                const updatedBooks = userBooks.map((b) => b.id === newBook.id ? newBook : b)
-                setUserBooks(updatedBooks)
-                localStorage.setItem("userBooks", JSON.stringify(updatedBooks))
-                setBook(newBook)
-                setIsAddOpen(false)
-                setEditingBook(null)
-                bookFormRef.current?.reset()
-              }}
+              onSave={handleSaveBook}
             />
             <SheetFooter>
               <div className="flex items-center gap-2">
-                <Button variant="muted" onClick={() => { setIsAddOpen(false); setEditingBook(null); bookFormRef.current?.reset() }}>Annuler</Button>
+                <Button 
+                  variant="muted" 
+                  onClick={() => { setIsAddOpen(false); setEditingBook(null); bookFormRef.current?.reset() }}
+                  disabled={isSaving}
+                >
+                  Annuler
+                </Button>
                 <Button
                   variant="secondary"
-                  onClick={() => {    
+                  onClick={async () => {    
                     if (!bookFormRef.current) return
-                    const { ok } = bookFormRef.current.submit() // call the form's submit
+                    const { ok } = await bookFormRef.current.submit()
                     if (ok) {
-                      toast.success("Livre mis à jour") // Sonner toast
+                      toast.success("Livre mis à jour")
                       setIsAddOpen(false)
                       setEditingBook(null)
                     } else {
                       toast.error("Erreur : vérifiez les champs du livre")
                     }
                   }}
-                    disabled={!canSaveForm}
+                  disabled={!canSaveForm || isSaving}
                 >
-                  Mettre à jour
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Sauvegarde...
+                    </>
+                  ) : (
+                    'Mettre à jour'
+                  )}
                 </Button>
               </div>
             </SheetFooter>
@@ -578,7 +736,6 @@ const BookDetailView = ({ bookId, onBack }) => {
         </Sheet>    
       </div>
     </div>
-    
   )
 }
 

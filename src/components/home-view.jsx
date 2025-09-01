@@ -3,7 +3,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import {Search, Loader2, ChevronLeft, ChevronRight, Globe, CalendarFold, PenTool, Accessibility } from "lucide-react"
+import {Search, Loader2, ChevronLeft, ChevronRight, Globe, CalendarFold, PenTool, Accessibility, Plus, Check, BookOpen, LibraryBig, BookPlus, Bookmark, BookmarkCheck } from "lucide-react"
+import { toast } from 'sonner'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog"
+
+import ApiService from '../services/api'
 
 const HomeView = () => {
   const [searchTerm, setSearchTerm] = useState("")
@@ -17,6 +29,13 @@ const HomeView = () => {
   const [isSearching, setIsSearching] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const BOOKS_PER_PAGE = 24
+  
+  const [selectedTrending, setSelectedTrending] = useState(null)
+
+  // State for user's library books and adding books
+  const [userLibraryBooks, setUserLibraryBooks] = useState([])
+  const [isLoadingLibrary, setIsLoadingLibrary] = useState(false)
+  const [addingBooks, setAddingBooks] = useState(new Set()) // Track which books are being added
 
   const allBooks = useMemo(() => {
     return [...openLibraryBooks]
@@ -66,6 +85,26 @@ const HomeView = () => {
     }
   }, [filteredBooks.length, currentPage])
 
+  // Load user's library books
+  useEffect(() => {
+    const loadUserLibrary = async () => {
+      try {
+        setIsLoadingLibrary(true)
+        const books = await ApiService.getBooks()
+        setUserLibraryBooks(books)
+      } catch (error) {
+        console.error('Failed to load user library:', error)
+        // Fallback to localStorage if API fails
+        const localBooks = JSON.parse(localStorage.getItem('userBooks') || '[]')
+        setUserLibraryBooks(localBooks)
+      } finally {
+        setIsLoadingLibrary(false)
+      }
+    }
+
+    loadUserLibrary()
+  }, [])
+
   useEffect(() => {
     const fetchOpenLibraryBooks = async () => {
       const cachedBooks = localStorage.getItem("openLibraryBooks")
@@ -95,8 +134,9 @@ const HomeView = () => {
           author: book.author_name?.length > 1 ? book.author_name.join(", ") : book.author_name?.[0] || "Auteur inconnu",
           publishedYear: book.first_publish_year || new Date().getFullYear(),
           isbn: book.isbn?.[0].split("-") || "",
-          genre: book.subject?.[0] || "Other",
+          genre: book.subject?.[0] || "Non spécifiée",
           description: `Livre populaire de ${book.author_name || "auteur inconnu"}`,
+          language: book.language?.[0] || "",
           imageUrl: book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg` : null,
           rating: (Math.random() * 2 + 3).toFixed(1), // Random rating between 3.0-5.0
           workKey: book.key, // Store the work key for description fetching
@@ -115,7 +155,7 @@ const HomeView = () => {
     }
 
     fetchOpenLibraryBooks()
-  }, []) // Empty dependency array ensures this only runs once per app session
+  },[]) // Empty dependency array ensures this only runs once per app session
 
   // Fetch trending books from OpenLibrary trending API
   useEffect(() => {
@@ -224,6 +264,71 @@ const HomeView = () => {
   const handlePageClick = (page) => {
     setCurrentPage(page)
   }
+
+  // Check if a book is already in user's library
+  const normalize = (value) => (value ? value.toLowerCase() : "")
+
+  const isBookInLibrary = (book) => {
+    return userLibraryBooks.some(userBook => 
+      normalize(userBook.title) === normalize(book.title) &&
+      normalize(userBook.author) === normalize(book.author)
+    )
+  }
+
+
+  // Add book to user's library
+  const handleAddToLibrary = async (book) => {
+    if (isBookInLibrary(book)) {
+      toast.info("Ce livre est déjà dans votre bibliothèque")
+      return
+    }
+
+    try {
+      setAddingBooks(prev => new Set(prev).add(book.id))
+      
+      // Transform OpenLibrary book to our format
+      const bookData = {
+        title: book.title  || "Titre non disponible",
+        author: book.author || "Auteur Inconnu " ,
+        publishedYear: book.publishedYear || new Date().getFullYear(),
+        isbn: book.isbn,
+        genre: book.genre ||"Non spécifiée",
+        description: book.description,
+        imageUrl: book.imageUrl,
+        rating: book.rating,
+        workKey: book.workKey,
+        meta: {
+          pagesRead: 0,
+          dateAdded: new Date().toISOString(),
+          shelves: [],
+          tags: [],
+        }
+      }
+
+      // Add to user's library via API
+      const addedBook = await ApiService.createBook(bookData)
+      
+      // Update local state
+      setUserLibraryBooks(prev => [...prev, addedBook])
+      
+      toast.success("Livre ajouté à votre bibliothèque!", {
+        description: `"${book.title}" a été ajouté avec succès`
+      })
+      
+    } catch (error) {
+      console.error('Failed to add book to library:', error)
+      toast.error("Erreur lors de l'ajout", {
+        description: error.message || "Réessayez plus tard"
+      })
+    } finally {
+      setAddingBooks(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(book.id)
+        return newSet
+      })
+    }
+  }
+
   return (
     <>
       <div className="pattern"/>
@@ -370,7 +475,7 @@ const HomeView = () => {
                     {trendingBooks.map((book, index) => (
                       <li key={book.id}>
                         <p>{index + 1}</p>
-                        <img src={book.imageUrl || "/src/assets/no-book.png"} alt={book.title} />
+                        <img  src={book.imageUrl || "/src/assets/no-book.png"} className="rounded-lg object-cover cursor-pointer hover:opacity-80 mb-2 group-hover:scale-105 transition-transform duration-200" alt={book.title} />
                       </li>
                     ))}
                   </ul>
@@ -397,7 +502,45 @@ const HomeView = () => {
                     <ul>
                       {paginatedBooks.map((book) => (
                         <li key={book.id} className="movie-card">
-                          <img src={book.imageUrl || "/src/assets/no-book.png"} ClassName="rounded-lg w-full h-auto object-cover cursor-pointer hover:opacity-80 mb-2 group-hover:scale-105 transition-transform duration-200" alt={book.title} />
+                          <div className="relative group">
+                            <img 
+                              src={book.imageUrl || "/src/assets/no-book.png"} 
+                              className="rounded-lg w-fll h-75 object-cover cursor-pointer hover:opacity-80 mb-2 group-hover:scale-105 transition-transform duration-200" 
+                              alt={book.title}
+                              onClick={() => !isBookInLibrary(book) && !addingBooks.has(book.id) && handleAddToLibrary(book)}
+                            />
+                            
+                            {/* Floating action button on image */}
+                            {!isBookInLibrary(book) && (
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAddToLibrary(book);
+                                  }}
+                                  disabled={addingBooks.has(book.id)}
+                                  className="h-8 w-8 p-0 rounded-full bg-white/90 hover:bg-white shadow-lg"
+                                >
+                                  {addingBooks.has(book.id) ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <BookPlus className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                            )}
+                            
+                            {/* Success indicator when book is in library */}
+                            {isBookInLibrary(book) && (
+                              <div className="absolute top-2 right-2">
+                                <div className="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
+                                  <BookmarkCheck className="h-4 w-4 text-white" />
+                                </div>
+                              </div>
+                            )}
+                          </div>
                           <h3 className="text-[16px] mt-2.5 ">{book.title}</h3>
                           <div className="content">
                             <div className="rating">
@@ -414,6 +557,35 @@ const HomeView = () => {
                             <CalendarFold className="size-3"></CalendarFold>
                             </span>
                             <span className="year">{book.publishedYear}</span>
+                          </div>
+                          
+                          {/* Alternative Add to Library Button - Icon only */}
+                          <div className="book-actions mt-2 flex justify-center">
+                            {!isBookInLibrary(book) && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => handleAddToLibrary(book)}
+                                disabled={addingBooks.has(book.id)}
+                                className="h-8 w-8 p-0 rounded-full hover:bg-primary/10 hover:text-primary"
+                                title="Ajouter à ma bibliothèque"
+                              >
+                                {addingBooks.has(book.id) ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  null
+                                )}
+                              </Button>
+                            )}
+                            {isBookInLibrary(book) && (
+                              <div className="flex flex-auto mt-2 mb-2 items-center gap-1 text-green-500 text-sm">
+                              <div className="flex items-center gap-1 text-green-500 text-sm">
+                                <Check className="h-4 w-4" />
+                                <LibraryBig  className="h-auto w-6" />
+                              </div>
+                              <span>Dans ma bibliothèque</span>
+                              </div>
+                            )}
                           </div>
                         </li>
                       ))}
