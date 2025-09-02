@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS books (
     pages_read INTEGER DEFAULT 0,
     date_started DATE,
     date_finished DATE,
+    due_date DATE,
     lend_to VARCHAR(255),
     borrow_from VARCHAR(255),
     date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

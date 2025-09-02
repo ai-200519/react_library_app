@@ -9,7 +9,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-light-100 font-semibold tracking-wide shadow-lg shadow-light-100/10 hover:bg-white hover:text-primary hover:shadow-2xl hover:shadow-white/60 focus-visible:ring-light-100/50 border border-light-100/5 hover:border-white/30 rounded-md hover:[box-shadow:_0_0_30px_rgba(255,255,255,0.4)]",
+          "bg-light-100 text-dark-100 font-semibold tracking-wide shadow-lg shadow-light-100/10 hover:bg-white hover:text-primary hover:shadow-2xl hover:shadow-white/60 focus-visible:ring-light-100/50 border border-light-100/5 hover:border-white/30 rounded-md hover:[box-shadow:_0_0_30px_rgba(255,255,255,0.4)]",
         
         primary:
           "bg-light-100 text-primary font-bold tracking-wide shadow-lg shadow-light-100/20 hover:bg-gradient-to-r hover:from-white hover:to-light-100 hover:shadow-2xl hover:shadow-white/70 hover:scale-105 focus-visible:ring-light-100/50 rounded-md hover:[box-shadow:_0_0_40px_rgba(255,255,255,0.5)]",

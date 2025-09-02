@@ -55,12 +55,11 @@ const BookDetailView = ({ bookId, onBack }) => {
       setIsLoading(true)
       
       if (isOnline) {
-        // Try to load from API first
+        // Try to load from API first (already transformed by ApiService)
         const apiBooks = await ApiService.getBooks()
-        const transformedBooks = apiBooks.map(book => ApiService.transformBackendBook(book))
-        setUserBooks(transformedBooks)
+        setUserBooks(apiBooks)
         
-        const foundBook = transformedBooks.find(b => b.id === bookId)
+        const foundBook = apiBooks.find(b => b.id === bookId)
         if (foundBook) {
           setBook(foundBook)
           setPagesRead(foundBook.meta?.pagesRead || 0)
@@ -70,7 +69,7 @@ const BookDetailView = ({ bookId, onBack }) => {
         }
         
         // Update localStorage as cache
-        localStorage.setItem('userBooks', JSON.stringify(transformedBooks))
+        localStorage.setItem('userBooks', JSON.stringify(apiBooks))
       } else {
         // Fallback to localStorage
         const localBooks = JSON.parse(localStorage.getItem('userBooks') || '[]')
@@ -162,8 +161,7 @@ const BookDetailView = ({ bookId, onBack }) => {
       let savedBook
 
       if (isOnline) {
-        const updatedBook = await ApiService.updateBook(editingBook.id, bookData)
-        savedBook = ApiService.transformBackendBook(updatedBook)
+        savedBook = await ApiService.updateBook(editingBook.id, bookData)
       } else {
         // Offline mode
         savedBook = { ...bookData, id: editingBook.id }

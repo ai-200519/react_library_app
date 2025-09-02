@@ -32,7 +32,8 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange, s
     tagInput: "",
     lendTo: "",
     borrowFrom: "",
-    dateAdded: "",
+    dueDate: "",
+    dateAdded: new Date().toISOString(),
   })
 
   const [errors, setErrors] = useState({})
@@ -62,6 +63,7 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange, s
         pagesRead: book.meta?.pagesRead || 0,
         dateStarted: book.meta?.dateStarted || "",
         dateFinished: book.meta?.dateFinished || "",
+        dueDate: book.meta?.dueDate || "",
         // Handle shelves array properly - take first shelf ID or empty string
         shelves: (book.meta?.shelves && Array.isArray(book.meta.shelves) && book.meta.shelves.length > 0) 
           ? book.meta.shelves[0] 
@@ -97,6 +99,7 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange, s
       pagesRead: 0,
       dateStarted: "",
       dateFinished: "",
+      dueDate: "",
       shelves: "",
       shelfInput: "",
       tags: [],
@@ -238,6 +241,14 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange, s
     onCanSaveChange && onCanSaveChange(canSave)
   }, [canSave, onCanSaveChange])
 
+  // Auto-clear due date when no lending/borrowing context
+  useEffect(() => {
+    const hasContext = (notations.lendTo || "").trim() || (notations.borrowFrom || "").trim()
+    if (!hasContext && notations.dueDate) {
+      setNotations((p) => ({ ...p, dueDate: "" }))
+    }
+  }, [notations.lendTo, notations.borrowFrom])
+
   const buildBook = () => {
     const shelfId = notations.shelves || ""
     const shelfName = shelves.find((s) => s.id === shelfId)?.name || ""
@@ -265,6 +276,7 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange, s
         pagesRead: notations.pagesRead,
         dateStarted: notations.dateStarted || null,
         dateFinished: notations.dateFinished || null,
+        dueDate: notations.dueDate || null,
         shelves: shelfId ? [shelfId] : [],
         shelfName: shelfName,
         tags: [...notations.tags],
@@ -614,12 +626,24 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange, s
             </div>
           </div>
 
+          {/* Due Date (visible only if lending/borrowing) */}
+          {((notations.lendTo || "").trim() || (notations.borrowFrom || "").trim()) && (
+            <div>
+              <label className="text-xs text-light-200">Date d'échéance (retour prévu)</label>
+              <Input 
+                type="date" 
+                value={notations.dueDate} 
+                onChange={(e) => setNotations((p) => ({ ...p, dueDate: e.target.value }))} 
+              />
+            </div>
+          )}
+
           {/* Date Added */}
           <div>
             <label className="text-xs text-light-200">Date d'ajout</label>
             <Input 
               type="datetime-local" 
-              value={notations.dateAdded} 
+              value={notations.dateAdded ? new Date(notations.dateAdded).toISOString().slice(0,16) : new Date().toISOString().slice(0,16)} 
               onChange={(e) => setNotations((p) => ({ ...p, dateAdded: e.target.value }))} 
             />
           </div>
