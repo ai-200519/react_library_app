@@ -175,11 +175,11 @@ const HomeView = () => {
               return cleaned.length > 0 ? cleaned : null
             })(),
             genre: book.subject?.[0] || "Non spécifiée",
-            description: `Livre populaire de ${book.author_name || "auteur inconnu"}`,
+            description: null ,
             language: book.language?.[0] || "",
             imageUrl: book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg` : null,
             rating: (Math.random() * 2 + 3).toFixed(1), // Random rating between 3.0-5.0
-            workKey: book.key, // Store the work key for description fetching
+            workKey: book.key, // Store the work key for description fetching and genre
           }
           
           // Debug first few books
@@ -208,6 +208,17 @@ const HomeView = () => {
 
     fetchOpenLibraryBooks()
   },[]) // Empty dependency array ensures this only runs once per app session
+
+  const fetchBookDetails = async (workKey) => {
+    try {
+      const res = await fetch(`https://openlibrary.org/works/${workKey}.json`);
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      console.warn("Failed to fetch details", err);
+      return null;
+    }
+  };  
 
   // Fetch trending books from OpenLibrary trending API
   useEffect(() => {
@@ -330,10 +341,21 @@ const HomeView = () => {
 
 
   // Open book dialog
-  const handleBookClick = (book) => {
+  const handleBookClick = async (book) => {
     setSelectedBook(book)
     setSelectedShelf("")
     setIsDialogOpen(true)
+    if ((!book.description || !book.genre) && book.workKey) {
+      const details = await fetchBookDetails(book.workKey.replace("/works/", ""));
+      if (details) {
+        setSelectedBook((prev) => ({
+          ...prev,
+          description: typeof details.description === "string"
+            ? details.description
+            : details.description?.value || "Pas de description disponible",
+        }));
+      }
+    }  
   }
 
   // Add book to user's library from dialog
@@ -588,7 +610,7 @@ const HomeView = () => {
                           <div className="relative group">
                             <img 
                               src={book.imageUrl || "/src/assets/no-book.png"} 
-                              className="rounded-lg w-fll h-75 object-cover cursor-pointer hover:opacity-80 mb-2 group-hover:scale-105 transition-transform duration-200" 
+                              className="rounded-lg w-full h-75 object-cover cursor-pointer hover:opacity-80 mb-2 group-hover:scale-105 transition-transform duration-200" 
                               alt={book.title}
                               onClick={() => handleBookClick(book)}
                             />
