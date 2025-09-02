@@ -21,6 +21,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetTrigger
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Card } from './ui/card'
+import LendBorrowList from './lend-borrow-list'
 import { toast } from 'sonner'
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -77,13 +78,16 @@ const LibraryView = ({ onBookSelect, onBack }) => {
   
   const filterBooks = (books) => {
     let filtered = books.filter(book => {
-      // Search term filtering
+      // Search term filtering (null-safe)
+      const search = (searchTerm || '').toLowerCase()
+      const title = (book.title || '').toLowerCase()
+      const author = (book.author || '').toLowerCase()
+      const tags = Array.isArray(book.meta?.tags) ? book.meta.tags : []
       const matchesSearch = 
-        !searchTerm || 
-        book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (book.series && book.series.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (book.meta?.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
+        !search || 
+        title.includes(search) ||
+        author.includes(search) ||
+        tags.some(tag => (tag || '').toLowerCase().includes(search))
       
       // Status filtering
       let matchesStatus = true
@@ -106,12 +110,12 @@ const LibraryView = ({ onBookSelect, onBack }) => {
       
       switch (filterOptions.sortBy) {
         case "title":
-          valueA = a.title.toLowerCase()
-          valueB = b.title.toLowerCase()
+          valueA = (a.title || '').toLowerCase()
+          valueB = (b.title || '').toLowerCase()
           break
         case "author":
-          valueA = a.author.toLowerCase()
-          valueB = b.author.toLowerCase()
+          valueA = (a.author || '').toLowerCase()
+          valueB = (b.author || '').toLowerCase()
           break
         case "dateAdded":
           valueA = new Date(a.meta?.dateAdded || 0)
@@ -122,8 +126,8 @@ const LibraryView = ({ onBookSelect, onBack }) => {
           valueB = b.rating || 0
           break
         default:
-          valueA = a.title.toLowerCase()
-          valueB = b.title.toLowerCase()
+          valueA = (a.title || '').toLowerCase()
+          valueB = (b.title || '').toLowerCase()
       }
       
       if (filterOptions.sortOrder === "asc") {
@@ -193,6 +197,7 @@ const LibraryView = ({ onBookSelect, onBack }) => {
       pages_read: frontendBook.meta?.pagesRead || 0,
       date_started: frontendBook.meta?.dateStarted || null,
       date_finished: frontendBook.meta?.dateFinished || null,
+      due_date: frontendBook.meta?.dueDate || null,
       lend_to: frontendBook.meta?.lendTo || null,
       borrow_from: frontendBook.meta?.borrowFrom || null,
       date_added: frontendBook.meta?.dateAdded || new Date().toISOString(),
@@ -222,6 +227,7 @@ const LibraryView = ({ onBookSelect, onBack }) => {
         pagesRead: backendBook.pages_read || 0,
         dateStarted: backendBook.date_started,
         dateFinished: backendBook.date_finished,
+        dueDate: backendBook.due_date,
         lendTo: backendBook.lend_to,
         borrowFrom: backendBook.borrow_from,
         dateAdded: backendBook.date_added,
@@ -749,6 +755,26 @@ const LibraryView = ({ onBookSelect, onBack }) => {
   const lendList = useMemo(() => userBooks.filter((b) => (b.meta?.lendTo || "").trim()), [userBooks])
   const borrowList = useMemo(() => userBooks.filter((b) => (b.meta?.borrowFrom || "").trim()), [userBooks])
 
+  // Apply search and filter options to books list for display
+  const filteredBooks = useMemo(() => filterBooks(userBooks), [userBooks, searchTerm, filterOptions])
+
+  // Filtered books for currently selected shelf and tag views
+  const filteredShelfBooks = useMemo(() => {
+    if (!selectedShelf) return []
+    const booksInShelf = shelvesMap.get(selectedShelf) || []
+    return filterBooks(booksInShelf)
+  }, [selectedShelf, shelvesMap, searchTerm, filterOptions])
+
+  const filteredTagBooks = useMemo(() => {
+    if (!selectedTag) return []
+    const booksWithTag = tagsMap.get(selectedTag) || []
+    return filterBooks(booksWithTag)
+  }, [selectedTag, tagsMap, searchTerm, filterOptions])
+
+  const filteredlendlist =  useMemo(() => { return filterBooks(lendList) || [] }, [lendList, searchTerm, filterOptions])
+  const filteredborrowList =  useMemo(() => { return filterBooks(borrowList) || [] }, [borrowList, searchTerm, filterOptions])
+
+
   const openEditBook = (book) => {
     setEditingBook(book)
     setIsAddOpen(true)
@@ -902,7 +928,7 @@ const LibraryView = ({ onBookSelect, onBack }) => {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-light-200" />
               <Input
-                placeholder="Rechercher un livre par titre, auteur, shelf ou tag..."
+                placeholder="Rechercher un livre par titre, auteur, ou tag..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 text-light-200 border-light-100/20"
@@ -997,9 +1023,15 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                         <p className="text-light-200 text-l">Essayez de créer un livre en utilisant ces fonctionnalités.</p>
                         <p className="text-sm">Cliquez sur <span className="text-gradient">« Ajouter un livre »</span> ou depuis la section <span className="text-gradient">« Accueil »</span>.</p>
                       </header>
+                    ) : filteredBooks.length === 0 ? (
+                      <header className="text-center max-w-md mx-auto space-y-3">
+                        <img src="/src/assets/no-mybooks-no.png" className='max-w-xs mx-auto' alt="Book Banner" />
+                        <h4 className="text-white font-semibold">Aucun livre ne correspond aux filtres</h4>
+                        <p className="text-light-200 text-sm">Modifiez la recherche ou réinitialisez les filtres.</p>
+                      </header>
                     ) : (
                       <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 ">
-                        {userBooks.map((book) =>(
+                        {filteredBooks.map((book) =>(
                             <BookCard
                             key={book.id}
                             book={book}
@@ -1028,9 +1060,8 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                           >
                             <Layers className="h-4 w-4" /> Mes étagères
                           </BreadcrumbLink>
-                          <BreadcrumbSeparator className="text-light-200" />  
                         </BreadcrumbItem>
-
+                        <BreadcrumbSeparator className="text-light-200" />
                         {selectedShelf && (
                           <BreadcrumbItem>
                             <BreadcrumbPage className="text-white font-semibold flex items-center gap-1">
@@ -1119,9 +1150,15 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                             <h4 className="text-white font-semibold">Aucun livre dans cette étagère.</h4>
                             <p className="text-light-200 text-l">Ajoutez des livres en les créant et en sélectionnant cette étagère.</p>
                           </header>
+                        ) : filteredShelfBooks.length === 0 ? (
+                          <header className="text-center max-w-md mx-auto space-y-3">
+                            <img src="/src/assets/no-mybooks-no.png" className='max-w-xs mx-auto' alt="Book Banner" />
+                            <h4 className="text-white font-semibold">Aucun livre ne correspond aux filtres pour cette étagère.</h4>
+                            <p className="text-light-200 text-sm">Modifiez la recherche ou réinitialisez les filtres.</p>
+                          </header>
                         ) : (
                           <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {(shelvesMap.get(selectedShelf) || []).map(book => (
+                            {filteredShelfBooks.map(book => (
                               <BookCard
                                 key={book.id}
                                 book={book}
@@ -1178,42 +1215,18 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                     <span>Empruntez des livres près de chez vous et prêtez les vôtres </span>                
                     <Separator className="my-2 bg-light-100/20" />
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <Card>
-                        <h1 className="flex flex-auto justify-center items-center font-bold">Prêté à </h1>
-                        {lendList.length === 0 ? (
-                          <header className="text-center max-w-md mx-auto space-y-3">
-                            <img src="/src/assets/reshot-icon-borrow-book-GJM3PD62HZ.svg" className='max-w-xs mx-auto ' alt="Book Banner" />
-                            <p className=" text-l">Liste des livres Prêtés/Empruntés est vide .</p>
-                          </header>
-                        ) : (
-                          <ul className="mt-2 space-y-2">
-                            {lendList.map((b) => (
-                              <li key={b.id} className="bg-dark-100 p-2 rounded-md">
-                                <div className="text-sm text-white">{b.title}</div>
-                                <div className="text-xs text-light-200">{b.meta.lendTo}</div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </Card>
-                      <Card>
-                        <h1 className="text-center font-bold">Emprunté par</h1>
-                        {borrowList.length === 0 ? (
-                          <header className="text-center max-w-md mx-auto space-y-3">
-                            <img src="/src/assets/reshot-icon-borrow-book-GJM3PD62HZ.svg" className='max-w-xs mx-auto ' alt="Book Banner" />
-                            <p className=" text-l">Liste des livres Empruntés/Prêtés est vide .</p>
-                          </header>
-                        ) : (
-                          <ul className="mt-2 space-y-2">
-                            {borrowList.map((b) => (
-                              <li key={b.id} className="bg-dark-100 p-2 rounded-md">
-                                <div className="text-sm text-white">{b.title}</div>
-                                <div className="text-xs text-light-200">{b.meta.borrowFrom}</div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </Card>
+                      <LendBorrowList
+                        title="Prêté à"
+                        books={filteredlendlist}
+                        type="lend"
+                        onSelect={onBookSelect}
+                      />
+                      <LendBorrowList
+                        title="Emprunté par"
+                        books={filteredborrowList}
+                        type="borrow"
+                        onSelect={onBookSelect}
+                      />
                     </div>
                   </>
                 )}
@@ -1237,7 +1250,8 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                             <Hash className="h-4 w-4" /> My Tags
                           </BreadcrumbLink>
                         </BreadcrumbItem>
-
+                        
+                        <BreadcrumbSeparator className="text-light-200" />
                         {selectedTag && (
                           <BreadcrumbItem>
                             <BreadcrumbPage className="text-white font-semibold flex items-center gap-1">
@@ -1251,9 +1265,9 @@ const LibraryView = ({ onBookSelect, onBack }) => {
 
                     {selectedTag ? (
                       <>
-                        {tagsMap.get(selectedTag)?.length ? (
+                        {filteredTagBooks.length ? (
                           <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 ">
-                            {tagsMap.get(selectedTag).map((book) => (
+                            {filteredTagBooks.map((book) => (
                               <BookCard
                                 key={book.id}
                                 book={book}
@@ -1268,6 +1282,9 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                           <header className="text-center max-w-md mx-auto space-y-3">
                             <img src="/src/assets/no-mybooks-no.png" className='max-w-xs mx-auto' alt="Book Banner" />
                             <h4 className="text-white font-semibold">Aucun livre trouvé pour ce tag.</h4>
+                            {(tagsMap.get(selectedTag)?.length || 0) > 0 && (
+                              <p className="text-light-200 text-sm">Aucun résultat ne correspond aux filtres actuels.</p>
+                            )}
                           </header>                      
                         )}
                       </>
