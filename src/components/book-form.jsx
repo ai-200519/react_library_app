@@ -241,13 +241,7 @@ const BookForm = forwardRef(function BookForm({ book, onSave, onCanSaveChange, s
     onCanSaveChange && onCanSaveChange(canSave)
   }, [canSave, onCanSaveChange])
 
-  // Auto-clear due date when no lending/borrowing context
-  useEffect(() => {
-    const hasContext = (notations.lendTo || "").trim() || (notations.borrowFrom || "").trim()
-    if (!hasContext && notations.dueDate) {
-      setNotations((p) => ({ ...p, dueDate: "" }))
-    }
-  }, [notations.lendTo, notations.borrowFrom])
+  
 
   const buildBook = () => {
     const shelfId = notations.shelves || ""

@@ -88,9 +88,12 @@ module.exports = (pool) => {
         title, author, series, volume, publication_date, isbn,
         language, pages, genre, description, image_url, rating,
         published_year, work_key, pages_read, date_started,
-        date_finished, lend_to, borrow_from, date_added,
+        date_finished, due_date, lend_to, borrow_from, date_added,
         shelves = [], tags = []
       } = req.body;
+
+      // Add debugging
+      console.log('Creating book with due_date:', due_date);
 
       // Insert book
       const bookResult = await client.query(`
@@ -98,17 +101,18 @@ module.exports = (pool) => {
           device_id, title, author, series, volume, publication_date,
           isbn, language, pages, genre, description, image_url,
           rating, published_year, work_key, pages_read, date_started,
-          date_finished, lend_to, borrow_from, date_added
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+          date_finished, due_date, lend_to, borrow_from, date_added
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
         RETURNING *
       `, [
         req.deviceId, title, author, series, volume, publication_date,
         isbn, language, pages, genre, description, image_url,
         rating, published_year, work_key, pages_read, date_started,
-        date_finished, lend_to, borrow_from, date_added || new Date().toISOString()
+        date_finished, due_date, lend_to, borrow_from, date_added || new Date().toISOString()
       ]);
 
       const book = bookResult.rows[0];
+      console.log('Created book due_date:', book.due_date);
 
       // Handle shelves
       if (shelves && shelves.length > 0) {
@@ -181,7 +185,7 @@ module.exports = (pool) => {
     }
   });
 
-  // Update book
+  // Update book - FIXED VERSION
   router.put('/:id', async (req, res) => {
     const client = await pool.connect();
     
@@ -193,27 +197,32 @@ module.exports = (pool) => {
         title, author, series, volume, publication_date, isbn,
         language, pages, genre, description, image_url, rating,
         published_year, work_key, pages_read, date_started,
-        date_finished, lend_to, borrow_from, date_added,
+        date_finished, due_date, lend_to, borrow_from, date_added,
         shelves = [], tags = []
       } = req.body;
 
-      // Update book
+      // Add debugging
+      console.log('Updating book with due_date:', due_date);
+
+      // Update book - FIXED: Correct parameter positioning
       const bookResult = await client.query(`
         UPDATE books SET 
           title = $2, author = $3, series = $4, volume = $5, publication_date = $6,
           isbn = $7, language = $8, pages = $9, genre = $10, description = $11,
           image_url = $12, rating = $13, published_year = $14, work_key = $15,
           pages_read = $16, date_started = $17, date_finished = $18,
-          lend_to = $19, borrow_from = $20, date_added = $21,
+          due_date = $19, lend_to = $20, borrow_from = $21, date_added = $22,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1 AND device_id = $22
+        WHERE id = $1 AND device_id = $23
         RETURNING *
       `, [
         id, title, author, series, volume, publication_date, isbn,
         language, pages, genre, description, image_url, rating,
         published_year, work_key, pages_read, date_started,
-        date_finished, lend_to, borrow_from, date_added, req.deviceId
+        date_finished, due_date, lend_to, borrow_from, date_added, req.deviceId
       ]);
+
+      console.log('Updated book due_date:', bookResult.rows[0]?.due_date);
 
       if (bookResult.rows.length === 0) {
         return res.status(404).json({ error: 'Book not found' });

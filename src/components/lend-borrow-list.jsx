@@ -19,9 +19,9 @@ const LendBorrowList = ({ title, books = [], type = 'lend', onSelect }) => {
             const now = new Date()
             const daysLeft = due ? Math.ceil((due - now) / (1000 * 60 * 60 * 24)) : null
             const isOverdue = typeof daysLeft === 'number' && daysLeft < 0
-            const totalPages = Number(b.pages) || 0
+            const totalPages = Number(b.pages) || 1
             const pagesRead = Number(b.meta?.pagesRead) || 0
-            const readingProgress = totalPages > 0 ? Math.min((pagesRead / totalPages) * 100, 100) : 0
+            const readingProgress = Math.min((pagesRead / totalPages) * 100, 100)
             const hasContext = ((b.meta?.lendTo || '').trim().length > 0) || ((b.meta?.borrowFrom || '').trim().length > 0)
 
             return (
@@ -88,12 +88,11 @@ const LendBorrowList = ({ title, books = [], type = 'lend', onSelect }) => {
                     </Badge>
                   )}
                 </div>
-                {totalPages > 0 && (
-                  <div className="mt-2">
-                    <Progress value={readingProgress} className="bg-light-100/10 h-1.5" />
-                    <div className="text-[13px] text-light-300 mt-1">{Math.round(readingProgress)}%</div>
-                  </div>
-                )}
+
+                <div className="mt-2">
+                  <Progress value={readingProgress} className="bg-light-100/10 h-1.5" />
+                  <div className="text-[13px] text-light-300 mt-1">Progression: {readingProgress > 0 ? Math.round(readingProgress) + "%" : "Not defined %"}</div>
+                </div>   
               </div>
             </li>
           )})}

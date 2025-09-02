@@ -66,6 +66,9 @@ const LibraryView = ({ onBookSelect, onBack }) => {
   const [isShelfDialogOpen, setIsShelfDialogOpen] = useState(false)
   const [newShelfRenameName, setNewShelfRenameName] = useState("")
 
+  const [allTags, setAllTags] = useState([]) // All tags for the device
+  const [isAddTagDialogOpen, setIsAddTagDialogOpen] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
   // API Service - we'll implement this inline for now
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
@@ -237,7 +240,6 @@ const LibraryView = ({ onBookSelect, onBack }) => {
       },
     }
   }
-
   const extractShelfIds = (shelves) => {
     if (!Array.isArray(shelves)) return []
     return shelves.map(shelf => typeof shelf === 'object' ? shelf.id : shelf).filter(Boolean)
@@ -293,25 +295,30 @@ const LibraryView = ({ onBookSelect, onBack }) => {
         // Offline mode - use localStorage
         const localBooks = JSON.parse(localStorage.getItem('userBooks') || '[]')
         const localShelves = JSON.parse(localStorage.getItem('userShelves') || '[]')
+        const localTags = JSON.parse(localStorage.getItem('userTags') || '[]')
         setUserBooks(localBooks)
         setShelves(localShelves.length > 0 ? localShelves : [{ id: "default", name: "Ma Bibliothèque" }])
+        setAllTags(localTags)
         return
       }
 
       // Online mode - fetch from API
-      const [apiBooks, apiShelves] = await Promise.all([
+      const [apiBooks, apiShelves, apiTags] = await Promise.all([
         apiRequest('/books'),
-        apiRequest('/shelves')
+        apiRequest('/shelves'),
+        apiRequest('/tags')
       ])
 
       
       const transformedBooks = apiBooks.map(book => transformFromBackendFormat(book))
       setUserBooks(transformedBooks)
       setShelves(apiShelves.length > 0 ? apiShelves : [{ id: "default", name: "Ma Bibliothèque" }])
+      setAllTags(apiTags.length > 0 ? apiTags : [])
       
       // Update localStorage as cache
       localStorage.setItem('userBooks', JSON.stringify(transformedBooks))
       localStorage.setItem('userShelves', JSON.stringify(apiShelves))
+      localStorage.setItem('userTags', JSON.stringify(apiTags))
       
       setLastSyncTime(new Date())
 
@@ -326,8 +333,10 @@ const LibraryView = ({ onBookSelect, onBack }) => {
       // Fallback to localStorage
       const localBooks = JSON.parse(localStorage.getItem('userBooks') || '[]')
       const localShelves = JSON.parse(localStorage.getItem('userShelves') || '[]')
+      const localTags = JSON.parse(localStorage.getItem('userTags') || '[]')
       setUserBooks(localBooks)
       setShelves(localShelves.length > 0 ? localShelves : [{ id: "default", name: "Ma Bibliothèque" }])
+      setAllTags(localTags)
       
       toast.error("Erreur de connexion", {
         description: "Mode hors ligne activé"
@@ -355,8 +364,9 @@ const LibraryView = ({ onBookSelect, onBack }) => {
       
       const localBooks = JSON.parse(localStorage.getItem('userBooks') || '[]')
       const localShelves = JSON.parse(localStorage.getItem('userShelves') || '[]')
-      
+      const localTags = JSON.parse(localStorage.getItem('userTags') || '[]')
       let migratedBooks = 0
+      let migratedTags = 0
       let migratedShelves = 0
       let errors = []
 
@@ -389,20 +399,38 @@ const LibraryView = ({ onBookSelect, onBack }) => {
         }
       }
 
+      // Migrate tags
+
+      for (const tag of localTags) {
+        try {
+          await apiRequest('/tags', {
+            method: 'POST',
+            body: { name: tag.name }
+          })
+          migratedTags++
+        } catch (error) {
+          console.warn(`Failed to migrate tag: ${tag.name}`, error)
+          errors.push(`Tag "${tag.name}": ${error.message}`)
+        }
+      }
+
       // Clear localStorage after successful migration
-      if (migratedBooks > 0 || migratedShelves > 0) {
+      if (migratedBooks > 0 || migratedShelves > 0 || migratedTags > 0) {
         const backup = {
           books: localBooks,
           shelves: localShelves,
+          tags: localTags,
           timestamp: new Date().toISOString()
         }
         localStorage.setItem('migrationBackup', JSON.stringify(backup))
         localStorage.removeItem('userBooks')
         localStorage.removeItem('userShelves')
-        
+        localStorage.removeItem('userTags')
+        localStorage.removeItem('userTags')
+        localStorage.removeItem('userTags')
         setMigrationStatus('completed')
         toast.success("Migration terminée", {
-          description: `${migratedBooks} livres et ${migratedShelves} étagères migrés`
+          description: `${migratedBooks} livres et ${migratedShelves} étagères et ${migratedTags} tags migrés`
         })
         
         // Reload data
@@ -564,6 +592,58 @@ const LibraryView = ({ onBookSelect, onBack }) => {
       toast.error("Erreur lors de la création")
     }
   }
+
+  // Add tag
+const handleAddTagConfirm = async () => {
+  const name = (newTagName || "").trim();
+  if (!name) {
+    toast.error("Veuillez saisir un nom de tag.");
+    return;
+  }
+  
+  const normalizedName = name.startsWith("#") ? name : `#${name}`;
+  
+  // Check if tag already exists in the current tags
+  if (allTags.some(tag => tag.name === normalizedName)) {
+    toast.error("Ce tag existe déjà.");
+    return;
+  }
+
+  try {
+    let newTag ;
+    if (isOnline) {
+      // Create tag via API
+      newTag = await apiRequest('/tags', {
+        method: 'POST',
+        body: { name: normalizedName }
+      });
+      
+      setAllTags(prev => [...prev, newTag]);
+    } else {
+      // Offline mode - update local state
+      newTag = {
+        id: `tag-${Date.now()}`,
+        name: normalizedName,
+        book_count: 0
+      };
+      
+      // Update local storage for offline persistence
+      const updatedTags = [...allTags, newTag]
+      localStorage.setItem('userTags', JSON.stringify(updatedTags));
+      
+      // Update state
+      setAllTags(prev => [...prev, newTag]);
+    }
+    
+    toast.success(`Tag "${normalizedName}" créé`);
+    setIsAddTagDialogOpen(false);
+    setNewTagName("");
+    
+  } catch (error) {
+    console.error('Failed to create tag:', error);
+    toast.error("Erreur lors de la création du tag");
+  }
+};
 
   // Rename shelf
   const handleShelfRenameConfirm = async () => {
@@ -1289,7 +1369,7 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                         )}
                       </>
                     ) : (
-                      tagsMap.size === 0 ? (
+                      allTags.length === 0 ? (
                         <header className="text-center max-w-md mx-auto space-y-3">
                           <img src="/src/assets/3D Hashtag.png" className="max-w-xs mx-auto" alt="Book Banner" />
                           <h4 className="text-white font-semibold">Aucun # tag.</h4>
@@ -1299,28 +1379,31 @@ const LibraryView = ({ onBookSelect, onBack }) => {
                         </header>
                       ) : (
                         <ul className="grid grid-cols-2 xs:grid-cols-3 md:grid-cols-4 gap-4">
-                          {Array.from(tagsMap.entries()).map(([tag, books]) => (
-                            <li key={tag} className="relative">
+                        {allTags.map(tag => { // Changed from Array.from(tagsMap.entries())
+                          const booksCount = tagsMap.get(tag.name)?.length || 0; // Get count from tagsMap
+                          return (
+                            <li key={tag.id} className="relative">
                               <div className="flex items-center justify-between px-3 py-1 rounded-full text-sm font-medium bg-gradient-to-r from-[#D6C7FF]/30 to-[#AB8BFF]/30 text-white cursor-pointer hover:from-[#D6C7FF]/50 hover:to-[#AB8BFF]/50 transition">
-                                <div onClick={() => setSelectedTag(tag)} className="flex items-center gap-2">
+                                <div onClick={() => setSelectedTag(tag.name)} className="flex items-center gap-2">
                                   <TagsIcon className="h-4 w-4" />
-                                  <span>{tag}</span>
-                                  <span className="text-xs text-gray-100 font-semibold">{books.length} livre(s)</span>
+                                  <span>{tag.name}</span>
+                                  <span className="text-xs text-gray-100 font-semibold">{booksCount} livre(s)</span>
                                 </div>
                                 <div className="text-light-200 hover:bg-light-100/10 focus:bg-light-100/10">
                                 <DropdownDot
                                   onRenameClick={() => {
-                                    setDialogTag(tag)
-                                    setNewName(tag)
+                                    setDialogTag(tag.name)
+                                    setNewName(tag.name)
                                     setIsDialogOpen(true)
                                   }}
-                                  onDeleteClick={() => handleDeleteTag(tag)}
+                                  onDeleteClick={() => handleDeleteTag(tag.name)}
                                 />
                                 </div>
                               </div>
                             </li>
-                          ))}
-                        </ul>
+                          );
+                        })}
+                      </ul>
                       )
                     )}
 
@@ -1389,6 +1472,43 @@ const LibraryView = ({ onBookSelect, onBack }) => {
             </Dialog>
           </>
         )}
+        {/* Floating Add Tag FAB */}
+        {activeSection === "tags" && (
+        <>
+          <button
+            aria-label="Ajouter un tag"
+            onClick={() => setIsAddTagDialogOpen(true)}
+            className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full shadow-xl bg-gradient-to-br from-[#AB8BFF] to-[#7C5CFF] flex items-center justify-center text-white"
+            disabled={isLoading}
+          >
+            <Plus className="h-4 w-6" />
+          </button>
+
+          <Dialog open={isAddTagDialogOpen} onOpenChange={setIsAddTagDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Créer un nouveau tag</DialogTitle>
+                <DialogDescription>Donnez un nom à votre tag.</DialogDescription>
+              </DialogHeader>
+
+              <div className="mt-2">
+                <Input
+                  placeholder="Nom du tag (Ex: #Maleprotagoniste, #Saga)"
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddTagConfirm()}
+                  autoFocus
+                />
+              </div>
+
+              <DialogFooter>
+                <Button variant="destructive" className="mt-2 rounded-b-md" onClick={() => { setIsAddTagDialogOpen(false); setNewTagName(""); }}>Annuler</Button>
+                <Button variant="secondary" className="mt-2 rounded-b-md" onClick={handleAddTagConfirm}>Créer</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
       </SidebarInset>
     </SidebarProvider>
   )
