@@ -8,8 +8,8 @@ const LendBorrowList = ({ title, books = [], type = 'lend', onSelect }) => {
     <div className="bg-dark-100/50 border border-light-100/20 rounded-xl p-4">
       <h4 className="text-white text-lg font-semibold mb-3">{title}</h4>
       {books.length === 0 ? (
-        <div className="text-center max-w-md mx-auto space-y-3 py-6">
-          <img src="/src/assets/reshot-icon-borrow-book-GJM3PD62HZ.svg" className='max-w-xs mx-auto ' alt="Book Banner" />
+        <div className="text-center mx-auto space-y-6 py-6">
+          <img src="/src/assets/exchange-book.svg" className='mx-auto h-xl' alt="Book Banner" />
           <p className="text-sm text-light-200">Aucun élément pour le moment.</p>
         </div>
       ) : (
@@ -42,7 +42,12 @@ const LendBorrowList = ({ title, books = [], type = 'lend', onSelect }) => {
                 {b.author && (
                   <div className="text-[11px] text-light-200 truncate flex items-center gap-2">
                     <PenTool className="h-4 w-4" />
-                    <Badge variant="outline" className=" text-light-300 border-light-100/30" >{b.author}</Badge>
+                    <Badge variant="outline" className=" text-light-300 border-light-100/30" >
+                    {b.author.split(", ").length > 4 
+                      ? `${b.author.split(", ").slice(0, 4).join(", ")}...` 
+                      : b.author
+                    }
+                    </Badge>
                   </div>  
                 )}
                 <div className="text-sm text-light-200 mt-1 truncate flex items-center gap-2">
@@ -55,30 +60,30 @@ const LendBorrowList = ({ title, books = [], type = 'lend', onSelect }) => {
                 </div>
                 {due ? (
                   <div className="mt-1 flex items-center gap-2">
-                    <Calendar className="h-4 w-4  text-light-300" />
-                    <span className="text-sm text-light-300">{due.toLocaleDateString()}</span>
+                    <Calendar className="h-4 w-4 text-light-200" />
+                    <span className="text-sm text-light-200 mt-1 truncate flex items-center gap-2">Rendre le<Badge variant="outline" className='text-sm'>{due.toLocaleDateString()}</Badge></span>
                     <Badge
                       variant="outline"
-                      className={`${isOverdue ? 'border-red-400 text-red-400' : daysLeft === 0 ? 'border-yellow-400 text-yellow-400' : 'border-green-400 text-green-400'} px-2 py-0.5 text-[10px]`}
+                      className={`${isOverdue ? 'border-red-400 text-red-400' : daysLeft === 0 ? 'border-yellow-400 text-yellow-400' : 'border-green-400 text-green-400'} px-2 py-0.5 text-[13px]`}
                     >
                       {isOverdue ? 'En retard' : daysLeft === 0 ? "Aujourd'hui" : `Dans ${daysLeft} j`}
                     </Badge>
                   </div>
                 ) : hasContext ? (
                   <div className="mt-1 flex items-center gap-2">
-                    <AlertCircle className="h-3 w-3 text-light-300" />
+                    <AlertCircle className="h-3 w-3 text-light-200" />
                     <Badge variant="outline" className="px-2 py-0.5 text-[13px] text-light-300 border-light-100/30">Échéance: —</Badge>
                   </div>
                 ) : null}
-                <div className="text-[13px] text-light-300 mt-1 flex items-center gap-2 flex-wrap">
-                  <CalendarClock className="h-3 w-3" />
+                <div className="text-[13px] text-light-200 mt-1 flex items-center gap-2 flex-wrap">
+                  <CalendarClock className="h-4 w-4" />
                   {b.meta?.dateStarted && (
                     <Badge variant="outline" className="px-2 py-0.5 text-[13px] border-light-100/30 text-light-300">
                       Débuté: {new Date(b.meta.dateStarted).toLocaleDateString()}
                     </Badge>
                   )}
                   {b.meta?.dateFinished && (
-                    <Badge variant="outline" className="px-2 py-0.5 text-[10px] border-light-100/30 text-light-300">
+                    <Badge variant="outline" className="px-2 py-0.5 text-[13px] border-light-100/30 text-light-300">
                       Fini: {new Date(b.meta.dateFinished).toLocaleDateString()}
                     </Badge>
                   )}

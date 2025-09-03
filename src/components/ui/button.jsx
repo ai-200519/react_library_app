@@ -82,7 +82,7 @@ const buttonVariants = cva(
           "bg-red-600 text-white font-semibold hover:bg-red-500 focus-visible:ring-red-400/50 rounded-md",
 
         success:
-          "bg-emerald-600/90 text-white font-semibold tracking-wide shadow-lg shadow-emerald-600/20 hover:bg-gradient-to-r hover:from-emerald-300 hover:to-green-300 hover:text-emerald-900 hover:shadow-2xl hover:shadow-emerald-300/60 hover:scale-105 focus-visible:ring-emerald-300/50 border border-emerald-500/20 hover:border-emerald-200/50 rounded-md hover:[box-shadow:_0_0_30px_rgba(52,211,153,0.6)]",
+          "bg-emerald-600/90 text-white font-semibold tracking-wide shadow-lg shadow-emerald-600/20 hover:bg-gradient-to-r hover:from-emerald-300 hover:to-green-300 hover:text-emerald-900 hover:shadow-2xl hover:shadow-emerald-300/60 hover:scale-104 focus-visible:ring-emerald-300/50  hover:border-emerald-200/50 rounded-md hover:[box-shadow:_0_0_30px_rgba(52,211,153,0.6)]",
         
         warning:
           "bg-amber-600/90 text-white font-semibold tracking-wide shadow-lg shadow-amber-600/20 hover:bg-gradient-to-r hover:from-amber-300 hover:to-yellow-300 hover:text-amber-900 hover:shadow-2xl hover:shadow-amber-300/60 hover:scale-105 focus-visible:ring-amber-300/50 border border-amber-500/20 hover:border-amber-200/50 rounded-md hover:[box-shadow:_0_0_30px_rgba(251,191,36,0.6)]",

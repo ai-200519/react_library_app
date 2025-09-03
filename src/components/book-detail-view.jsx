@@ -275,6 +275,7 @@ const BookDetailView = ({ bookId, onBack }) => {
     return (
       <div className="min-h-screen bg-primary flex items-center justify-center">
         <div className="text-center">
+        <img src="/src/assets/no-mybooks-no.png" className='max-w-xs mx-auto' alt="Book Banner" />          
           <h2 className="text-2xl font-bold text-white mb-4">Livre non trouvé</h2>
           <Button onClick={onBack} variant="secondary">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -295,9 +296,9 @@ const BookDetailView = ({ bookId, onBack }) => {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
               <Button 
-                variant="ghost" 
+                variant="secondary" 
                 onClick={onBack}
-                className="text-white hover:bg-light-100/20 hover:scale-105 transition-all duration-200"
+                className="text-white  hover:scale-105 transition-all duration-200"
               >
                 <ArrowLeft className="h-5 w-5 mr-2" />
                 Retour
@@ -365,7 +366,7 @@ const BookDetailView = ({ bookId, onBack }) => {
                   <img 
                     src={book.imageUrl || "/src/assets/no-book.png"} 
                     alt={book.title} 
-                    className="w-full h-120 max-w-sm mx-auto lg:mx-0 rounded-2xl shadow-2xl transform group-hover:scale-105 transition-transform duration-300"
+                    className="flex w-auto h-auto max-w-sm mx-auto lg:mx-0 rounded-2xl shadow-2xl transform group-hover:scale-105 transition-transform duration-300"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 </div>  

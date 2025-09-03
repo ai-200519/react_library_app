@@ -26,6 +26,8 @@ import {
 import ApiService from '../services/api'
 import { Badge } from "./ui/badge"
 import { formatISBN } from '@/lib/isbn'
+import { ScrollArea, ScrollBar } from "./ui/scroll-area"
+import { Skeleton } from "./ui/skeleton"
 
 const HomeView = () => {
   const [searchTerm, setSearchTerm] = useState("")
@@ -59,6 +61,8 @@ const HomeView = () => {
 
   const [trendingBooks, setTrendingBooks] = useState([])
   const [isLoadingTrending, setIsLoadingTrending] = useState(false)
+
+  const [isLoadingDescription, setIsLoadingDescription] = useState(false);
 
   const filteredBooks = useMemo(() => {
     if (!searchTerm) return allBooks
@@ -345,17 +349,26 @@ const HomeView = () => {
     setSelectedBook(book)
     setSelectedShelf("")
     setIsDialogOpen(true)
-    if ((!book.description || !book.genre) && book.workKey) {
+    if ((!book.description) && book.workKey) {
+      setIsLoadingDescription(true)
       const details = await fetchBookDetails(book.workKey.replace("/works/", ""));
       if (details) {
+        let formatedDescription = typeof details.description === "string"
+        ? details.description
+        : details.description?.value || "Pas de description disponible";
+
+        let dummyElement = document.createElement("p");
+        dummyElement.innerHTML = formatedDescription;
+
+        formatedDescription = dummyElement.innerText;
+
         setSelectedBook((prev) => ({
           ...prev,
-          description: typeof details.description === "string"
-            ? details.description
-            : details.description?.value || "Pas de description disponible",
+          description: formatedDescription,
         }));
       }
-    }  
+    }
+    setIsLoadingDescription(false)  
   }
 
   // Add book to user's library from dialog
@@ -766,14 +779,29 @@ const HomeView = () => {
 
                   </div>
                 </div>
-
-                {/* Description */}
-                {selectedBook.description && (
-                  <div>
-                    <Label className="text-light-200 text-sm">Description</Label>
-                    <p className="text-white text-sm leading-relaxed">{selectedBook.description}</p>
+                <div>
+                  {/* Description */}
+                  <Label className="text-light-200 text-sm">Description</Label>
+                  {isLoadingDescription ? (
+                  <div className="space-y-1 h-[200px] w-full rounded-md p-4">
+                    {Array.from({ length: 6 }).map((_, index) => (
+                      <Skeleton 
+                        key={index} 
+                        className={`h-4 rounded-full animate-pulse ${index === 5 ? 'w-3/4' : 'w-full'}`}
+                      ></Skeleton>
+                    ))}
                   </div>
-                )}
+                  ) : selectedBook.description ? (
+                      <ScrollArea className="text-white text-sm leading-relaxed h-[200px] w-full rounded-md pt-1 pl-1 pr-4">
+                        {selectedBook.description}
+                      </ScrollArea>
+                  ) : (
+                    <div className="flex items-center justify-center h-[200px] w-full rounded-md pt-4 text-muted-foreground">
+                      Pas de description disponible.
+                    </div>
+                  )}                   
+                </div>
+
 
                 {/* Shelf Selection */}
                 <div>
@@ -798,15 +826,7 @@ const HomeView = () => {
                   </Select>
                 </div>
 
-                {/* Status */}
-                {selectedBook && isBookInLibrary(selectedBook) && (
-                  <div className="bg-[#AB8BFF]/10 border border-[#AB8BFF]/20 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-green-500">
-                      <Check className="h-4 w-4" />
-                      <span className="font-medium">Ce livre est déjà dans votre bibliothèque</span>
-                    </div>
-                  </div>
-                )}
+
               </div>
             )}
 
@@ -814,6 +834,13 @@ const HomeView = () => {
               <Button className="mt-2" variant="destructive" onClick={handleCloseDialog}>
                 Annuler
               </Button>
+              {/* Status */}
+              {selectedBook && isBookInLibrary(selectedBook) && (
+                  <Button variant="success" className="mt-2 gap-2">
+                    <Check className="h-4 w-4" />
+                    Ce livre est déjà dans votre bibliothèque
+                  </Button>
+              )}
               {selectedBook && !isBookInLibrary(selectedBook) && (
                 <Button 
                   onClick={handleAddToLibrary}

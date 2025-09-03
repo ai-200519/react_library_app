@@ -426,8 +426,6 @@ const LibraryView = ({ onBookSelect, onBack }) => {
         localStorage.removeItem('userBooks')
         localStorage.removeItem('userShelves')
         localStorage.removeItem('userTags')
-        localStorage.removeItem('userTags')
-        localStorage.removeItem('userTags')
         setMigrationStatus('completed')
         toast.success("Migration terminée", {
           description: `${migratedBooks} livres et ${migratedShelves} étagères et ${migratedTags} tags migrés`
@@ -733,60 +731,123 @@ const handleAddTagConfirm = async () => {
   }
 
   // Tag management functions
-  const handleRenameConfirm = () => {
+  const handleRenameConfirm = async () => {
     if (!newName || newName === dialogTag) {
       toast.error("Renommage annulé")
       setIsDialogOpen(false)
       return
     }
-  
+    
     const normalizedName = newName.startsWith("#") ? newName : `#${newName}`
-    
-    const updatedBooks = userBooks.map((b) => {
-      const values = b.meta?.tags || []
-      if (values.includes(dialogTag)) {
-        return {
-          ...b,
-          meta: {
-            ...b.meta,
-            tags: values.map((t) => (t === dialogTag ? normalizedName : t)),
-          },
-        }
-      }
-      return b
-    })
 
-    setUserBooks(updatedBooks)
-    localStorage.setItem('userBooks', JSON.stringify(updatedBooks))
-    
-    toast.success(`Tag renommé en "${normalizedName}"`)
-    setIsDialogOpen(false)
+    if (allTags.some(tag => tag.name === normalizedName && tag.name !== dialogTag)){
+      toast.error(`un tag existe avec ce nom déjà !`)
+      return 
+    }
+
+    try {
+
+      const tagObject = allTags.find(t => t.name === dialogTag)
+
+      if (isOnline && tagObject){
+        await apiRequest(`/tags/${tagObject.id}`,{
+          method: 'PUT' ,
+          body: {name: normalizedName } 
+        });
+      }
+
+      const updatedBooks = userBooks.map((b) => {
+        const values = b.meta?.tags || []
+        if (values.includes(dialogTag)) {
+          return {
+            ...b,
+            meta: {
+              ...b.meta,
+              tags: values.map((t) => (t === dialogTag ? normalizedName : t)),
+            },
+          }
+        }
+        return b
+      })
+
+      const updatedTags = allTags.map( tag => tag.name === dialogTag ? {...tag, name: normalizedName} : tag); 
+  
+      setUserBooks(updatedBooks)
+      setAllTags(updatedTags)
+
+      localStorage.setItem('userBooks', JSON.stringify(updatedBooks))
+      localStorage.setItem(`userTags`, JSON.stringify(updatedTags) )
+
+      toast.success(`Tag renommé en "${normalizedName}"`)
+
+      if (selectedTag === dialogTag ) {
+        setSelectedTag(normalizedName);
+      }
+
+      setIsDialogOpen(false)      
+
+    } catch (error){
+      toast.error("Erreur lors du renommage", {
+        description: error.message || "Réessayez plus tard"
+      });
+    }   
+ 
   }
   
-  const handleDeleteTag = (tag) => {
+  const handleDeleteTag = async (tag) => {
     toast(`Supprimer le tag "${tag}" ?`, {
       description: "Cette action ne peut pas être annulée.",
       action: {
         label: "Supprimer",
-        onClick: () => {
-          const updatedBooks = userBooks.map(b => {
-            return {
+        onClick: async () => {
+          try {
+            // Find the tag object to get its ID
+            const tagObject = allTags.find(t => t.name === tag);
+            
+            if (isOnline && tagObject) {
+              // Delete from backend API
+              await apiRequest(`/tags/${tagObject.id}`, { method: 'DELETE' });
+            }
+            
+            // Update local state: remove tag from all books
+            const updatedBooks = userBooks.map(b => ({
               ...b,
               meta: {
                 ...b.meta,
                 tags: (b.meta?.tags || []).filter(t => t !== tag)
               }
+            }));
+            
+            // Update local state: remove tag from allTags
+            const updatedTags = allTags.filter(t => t.name !== tag);
+            
+            // Update state
+            setUserBooks(updatedBooks);
+            setAllTags(updatedTags);
+            
+            // Update localStorage
+            localStorage.setItem('userBooks', JSON.stringify(updatedBooks));
+            localStorage.setItem('userTags', JSON.stringify(updatedTags));
+            
+            toast.success(`Tag "${tag}" supprimé`);
+            
+            // If we're currently viewing this tag, go back to tags list
+            if (selectedTag === tag) {
+              setSelectedTag(null);
             }
-          })
-          setUserBooks(updatedBooks)
-          localStorage.setItem('userBooks', JSON.stringify(updatedBooks))
-          toast.success(`Tag "${tag}" supprimé`)
+            
+          } catch (error) {
+            console.error('Failed to delete tag:', error);
+            toast.error("Erreur lors de la suppression", {
+              description: error.message || "Réessayez plus tard"
+            });
+          }
         }
       },
       cancel: { label: "Annuler", onClick: () => toast.dismiss() },
       duration: 8000
-    })
-  }
+    });
+  };
 
   const items = [
     { id: "myBooks", title: "My Books", titledescription: "Tous vos livres", icon: BookCopy },
