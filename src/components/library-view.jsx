@@ -35,6 +35,7 @@ import DropdownDot from './DropdownDot'
 import BookCard from './book-card'
 
 import { Search, Filter, X } from "lucide-react"
+import BookSkeletonLoader from './bookcard-skeleton'
 
 const LibraryView = ({ onBookSelect, onBack }) => {
   // State management
@@ -1143,13 +1144,15 @@ const handleAddTagConfirm = async () => {
 
           <div className='text-amber-50'>
             {isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="flex flex-col items-center gap-3">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm text-white animate-pulse">Chargement de votre bibliothèque...</p>
+              <>
+              <div className="flex items-center justify-center py-4">
+                <div className="flex flex-col items-center gap-3">                
                   {!isOnline && <p className="text-xs text-light-200">Mode hors ligne</p>}
                 </div>
               </div>
+              <BookSkeletonLoader count={8} />                
+              </>
+
             ) : (
               <>
                 {activeSection === "myBooks" && (
@@ -1539,7 +1542,7 @@ const handleAddTagConfirm = async () => {
           <button
             aria-label="Ajouter un tag"
             onClick={() => setIsAddTagDialogOpen(true)}
-            className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full shadow-xl bg-gradient-to-br from-[#AB8BFF] to-[#7C5CFF] flex items-center justify-center text-white"
+            className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full shadow-xl bg-grad ient-to-br from-[#AB8BFF] to-[#7C5CFF] flex items-center justify-center text-white"
             disabled={isLoading}
           >
             <Plus className="h-4 w-6" />
