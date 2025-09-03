@@ -145,7 +145,7 @@ const HomeView = () => {
     const fetchOpenLibraryBooks = async () => {
       const cachedBooks = localStorage.getItem("openLibraryBooks")
       const cacheTimestamp = localStorage.getItem("openLibraryBooksTimestamp")
-      const CACHE_DURATION = 30 * 60 * 1000 // 1/2 hour in milliseconds
+      const CACHE_DURATION = 60* 60 * 1000 // 1 hour in milliseconds
 
       // If we have cached data and it's not expired, use it
       if (cachedBooks && cacheTimestamp) {
@@ -163,7 +163,7 @@ const HomeView = () => {
         console.log("Fetching fresh OpenLibrary books")
         setIsLoadingAPI(true)
         const response = await fetch(
-          "https://openlibrary.org/search.json?q=bestseller&limit=800",
+          "https://openlibrary.org/search.json?q=bestseller&limit=8000",
         )
         const data = await response.json()
         const formattedBooks = data.docs.map((book, index) => {
@@ -604,11 +604,35 @@ const HomeView = () => {
                 <h2>Tous les livres</h2>
 
                 {isLoadingAPI ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="flex flex-col items-center gap-3">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      <p className="text-sm text-white animate-pulse">Chargement...</p>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-center py-8">
+                      <div className="flex flex-col items-center gap-3">
+                        <Loader2 color="#AB8BFF" className="h-8 w-8 animate-spin text-primary" />
+                        <p className="text-sm text-white animate-pulse">Chargement ...</p>
+                      </div>
                     </div>
+                    <div
+                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"   
+                    >
+                      {Array.from({ length: 6 }).map((_, index) => (
+                        <div
+                          key={index}
+                          className={`p-4 border rounded-lg animate-pulse `}
+                        >
+                          <div
+                            className={`w-full h-32 mb-3 bg-[#AB8BFF] rounded flex-shrink-0`}
+                          ></div>
+                          <div className={`space-y-2`}>
+                            <div className="h-4 bg-[#AB8BFF] rounded w-3/4"></div>
+                            <div className="h-3 bg-[#AB8BFF] rounded w-1/2"></div>
+                            <div className="flex items-center gap-2">
+                              <div className="h-5 bg-[#AB8BFF] rounded w-16"></div>
+                              <div className="h-5 bg-[#AB8BFF] rounded w-20"></div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>              
                   </div>
                 ) : filteredBooks.length === 0 ? (
                   <div className="flex flex-col items-center justify-center gap-3 py-10">

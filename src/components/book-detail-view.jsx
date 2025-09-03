@@ -436,10 +436,6 @@ const BookDetailView = ({ bookId, onBack }) => {
                     </Badge>
                   </div>
 
-                  <div className="flex items-center gap-1">
-                    <Eye className="h-6 w-8" />
-                    <span>{Math.floor(Math.random() * 50000) + 5000} vues </span>
-                  </div>
                 </div>
                 
                 <div className="flex flex-wrap items-center gap-4 text-light-200 mb-4">
@@ -454,7 +450,10 @@ const BookDetailView = ({ bookId, onBack }) => {
                       </Badge>
                     </div>
                   ) : (
-                    <Badge variant="outline" className ="text-lg ml-1.5">N/A</Badge>
+                    <div className="flex items-center gap-2">
+                      <ScanBarcode className="text-white w-full h-full"/>
+                      <Badge variant="outline" className ="text-lg ml-1.5">ISBN: N/A</Badge>
+                    </div>
                   )}
                 </div>
                 
