@@ -15,4 +15,4 @@ export default defineConfig({
       https: false,
       port: 5173,
     },
-})
+  })
