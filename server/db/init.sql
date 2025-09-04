@@ -1,6 +1,3 @@
--- server/db/init.sql
--- Fixed SQL syntax errors
-
 -- Device sessions table
 CREATE TABLE IF NOT EXISTS devices (
     id SERIAL PRIMARY KEY,
@@ -49,7 +46,7 @@ CREATE TABLE IF NOT EXISTS shelves (
     UNIQUE(device_id, name)
 );
 
--- Tags table (FIXED: Added missing comma)
+-- Tags table 
 CREATE TABLE IF NOT EXISTS tags (
     id SERIAL PRIMARY KEY,
     device_id VARCHAR(255) REFERENCES devices(device_id) ON DELETE CASCADE,
@@ -77,21 +74,35 @@ CREATE TABLE IF NOT EXISTS book_tags (
     UNIQUE(book_id, tag_id)
 );
 
--- Public reviews (no authentication required - anonymous)
-CREATE TABLE IF NOT EXISTS reviews (
+-- Create table for quotes
+CREATE TABLE IF NOT EXISTS book_quotes (
     id SERIAL PRIMARY KEY,
-    book_title VARCHAR(500) NOT NULL,
-    book_author VARCHAR(500) NOT NULL,
-    book_isbn VARCHAR(20),
-    title_normalized VARCHAR(500),
-    author_normalized VARCHAR(500),
-    device_id VARCHAR(255) REFERENCES devices(device_id) ON DELETE SET NULL,
-    rating INTEGER CHECK (rating >= 1 AND rating <= 5),
-    review_text TEXT,
-    reviewer_name VARCHAR(100) DEFAULT 'Anonymous',
+    book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
+    quote_text TEXT NOT NULL,
+    page_number INTEGER,
+    chapter VARCHAR(255),
+    notes TEXT,
+    is_favorite BOOLEAN DEFAULT false,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+);    
+
+-- Add personal reviews and rating columns to book table 
+ALTER TABLE books 
+ADD COLUMN IF NOT EXISTS personal_rating INTEGER CHECK (personal_rating >= 1 AND personal_rating <= 5),  
+ADD COLUMN IF NOT EXISTS personal_review TEXT,
+ADD COLUMN IF NOT EXISTS reading_status VARCHAR(50) DEFAULT 'to_read' CHECK (reading_status IN ('to_read', 'currently_reading', 'finished', 'abandoned')),
+ADD COLUMN IF NOT EXISTS reading_notes TEXT;
+
+-- Update books with default status based on pages_read
+UPDATE books 
+SET reading_status = CASE 
+    WHEN pages_read = 0 THEN 'to_read'
+    WHEN pages_read > 0 AND pages_read < pages THEN 'currently_reading'
+    WHEN pages_read >= pages THEN 'finished'
+    ELSE 'to_read'
+END
+WHERE reading_status IS NULL;
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_books_device_id ON books(device_id);
@@ -111,9 +122,10 @@ CREATE INDEX IF NOT EXISTS idx_book_shelves_shelf_id ON book_shelves(shelf_id);
 CREATE INDEX IF NOT EXISTS idx_book_tags_book_id ON book_tags(book_id);
 CREATE INDEX IF NOT EXISTS idx_book_tags_tag_id ON book_tags(tag_id);
 
-CREATE INDEX IF NOT EXISTS idx_reviews_normalized ON reviews(title_normalized, author_normalized);
-CREATE INDEX IF NOT EXISTS idx_reviews_device_id ON reviews(device_id);
-CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at);
+CREATE INDEX IF NOT EXISTS idx_book_quotes_book_id ON book_quotes(book_id);
+CREATE INDEX IF NOT EXISTS idx_book_quotes_favorite ON book_quotes(book_id, is_favorite);
+CREATE INDEX IF NOT EXISTS idx_books_rating ON books(device_id, personal_rating);
+CREATE INDEX IF NOT EXISTS idx_books_status ON books(device_id, reading_status);
 
 -- Function to automatically create default shelf for new devices
 CREATE OR REPLACE FUNCTION create_default_shelf()

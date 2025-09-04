@@ -1,4 +1,3 @@
-// src/services/api.js
 import DeviceIdService from '../lib/deviceId'
 
 class ApiService {
@@ -170,42 +169,42 @@ class ApiService {
     })
   }
 
-  // Reviews API (public - no device middleware required)
-  async getReviewsForBook(title, author) {
-    const params = new URLSearchParams({ title, author })
-    try {
-      const response = await fetch(`${this.baseURL}/reviews/book?${params}`)
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      return response.json()
-    } catch (error) {
-      console.error('Failed to fetch reviews:', error)
-      throw error
-    }
+  async updateBookReview(bookId, reviewData) {
+    const backendBook = this.transformToBackendFormat(reviewData)
+    const response = await fetch(`/books/${bookId}/review`, {
+      method: 'PATCH',
+      body: backendBook,
+    });
+    return this.transformFromBackendFormat(response);
   }
 
-  async createReview(reviewData) {
-    try {
-      const response = await fetch(`${this.baseURL}/reviews`, {
+  // Quotes API
+  async getBookQuotes(bookId) {
+    return this.request(`/quotes/book/${bookId}`);
+  }
+
+  async addQuote(bookId, quoteData) {
+      return this.request(`/quotes/book/${bookId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...reviewData,
-          deviceId: this.deviceId,
-        }),
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
-      }
-      
-      return response.json()
-    } catch (error) {
-      console.error('Failed to create review:', error)
-      throw error
-    }
+        body: quoteData,
+      });
+  }
+
+  async updateQuote(quoteId, quoteData) {
+      return this.request(`/quotes/${quoteId}`, {
+        method: 'PUT',
+        body: quoteData,
+      });
+  }
+
+  async deleteQuote(quoteId) {
+      return this.request(`/quotes/${quoteId}`, {
+        method: 'DELETE',
+      });
+  }
+
+  async getFavoriteQuotes(bookId) {
+      return this.request(`${API_BASE_URL}/quotes/book/${bookId}/favorites`);
   }
 
   // Data transformation methods
@@ -230,6 +229,10 @@ class ApiService {
       date_finished: frontendBook.meta?.dateFinished || null,
       due_date: frontendBook.meta?.dueDate || null,
       lend_to: frontendBook.meta?.lendTo || null,
+      personal_rating: frontendBook.personal_rating || null,
+      personal_review: frontendBook.personal_review || null,
+      reading_status: frontendBook.reading_status || null,
+      reading_notes: frontendBook.reading_notes || null,
       borrow_from: frontendBook.meta?.borrowFrom || null,
       date_added: frontendBook.meta?.dateAdded || new Date().toISOString(),
       shelves: frontendBook.meta?.shelves || [],
@@ -254,6 +257,10 @@ class ApiService {
       pages: backendBook.pages,
       rating: backendBook.rating,
       workKey: backendBook.work_key,
+      personal_rating: backendBook.personal_rating,
+      personal_review: backendBook.personal_review,
+      reading_status: backendBook.reading_status,
+      reading_notes: backendBook.reading_notes,
       meta: {
         pagesRead: backendBook.pages_read || 0,
         dateStarted: backendBook.date_started,
@@ -298,6 +305,9 @@ class ApiService {
 
     return { results, errors }
   }
+
+
+
 
   // Migration helper - moves localStorage data to database
   async migrateFromLocalStorage() {
@@ -427,6 +437,78 @@ class ApiService {
         error: error.message,
       }
     }
+  }
+
+  // Offline support methods
+  getReadingStatusOptions() {
+    return [
+      { value: 'to_read', label: 'À lire' },
+      { value: 'currently_reading', label: 'En cours' },
+      { value: 'finished', label: 'Terminé' },
+      { value: 'abandoned', label: 'Abandonné' }
+    ];
+  }
+
+  async getBookQuotesOfflineFirst(bookId) {
+    try {
+      // Try online first
+      return await this.getBookQuotes(bookId);
+    } catch (error) {
+      // Fallback to localStorage if offline
+      const quotes = JSON.parse(localStorage.getItem(`quotes_${bookId}`) || '[]');
+      return quotes;
+    }
+  }
+
+  // Queue offline changes for later sync
+  queueOfflineChange(change) {
+    const offlineChanges = JSON.parse(localStorage.getItem('offlineChanges') || '[]');
+    offlineChanges.push({
+      ...change,
+      timestamp: Date.now(),
+      id: `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    });
+    localStorage.setItem('offlineChanges', JSON.stringify(offlineChanges));
+  }
+
+  // Sync offline changes when back online
+  async syncOfflineChanges() {
+    const offlineChanges = JSON.parse(localStorage.getItem('offlineChanges') || '[]');
+    if (offlineChanges.length === 0) return;
+
+    const synced = [];
+    const failed = [];
+
+    for (const change of offlineChanges) {
+      try {
+        switch (change.type) {
+          case 'update_review':
+            await this.updateBookReview(change.bookId, change.data);
+            break;
+          case 'add_quote':
+            await this.addQuote(change.bookId, change.data);
+            break;
+          case 'update_quote':
+            await this.updateQuote(change.quoteId, change.data);
+            break;
+          case 'delete_quote':
+            await this.deleteQuote(change.quoteId);
+            break;
+          default:
+            console.warn('Unknown offline change type:', change.type);
+        }
+        synced.push(change.id);
+      } catch (error) {
+        console.error('Failed to sync change:', change, error);
+        failed.push(change);
+      }
+    }
+
+    // Remove synced changes
+    const remainingChanges = offlineChanges.filter(change => !synced.includes(change.id));
+    localStorage.setItem('offlineChanges', JSON.stringify(remainingChanges));
+
+    return { synced: synced.length, failed: failed.length };
   }
 
   // Sync helper - compare local vs remote data and sync

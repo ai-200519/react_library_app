@@ -111,9 +111,6 @@ module.exports = (pool) => {
         date_finished, due_date, lend_to, borrow_from, date_added || new Date().toISOString()
       ]);
 
-      const book = bookResult.rows[0];
-      console.log('Created book due_date:', book.due_date);
-
       // Handle shelves
       if (shelves && shelves.length > 0) {
         for (const shelfId of shelves) {
@@ -200,10 +197,6 @@ module.exports = (pool) => {
         date_finished, due_date, lend_to, borrow_from, date_added,
         shelves = [], tags = []
       } = req.body;
-
-      // Add debugging
-      console.log('Updating book with due_date:', due_date);
-
       // Update book - FIXED: Correct parameter positioning
       const bookResult = await client.query(`
         UPDATE books SET 
@@ -298,6 +291,38 @@ module.exports = (pool) => {
       res.status(500).json({ error: error.message });
     } finally {
       client.release();
+    }
+  });
+
+  // Update book review/rating (specific endpoint for personal reviews)
+  router.patch('/:id/review', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { deviceId } = req;
+      const { personal_rating, personal_review, reading_status, reading_notes } = req.body;
+
+      // Check if book exists and belongs to device
+      const bookCheck = await pool.query(
+        'SELECT id FROM books WHERE id = $1 AND device_id = $2',
+        [id, deviceId]
+      );
+
+      if (bookCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Book not found' });
+      }
+
+      const result = await pool.query(
+        `UPDATE books 
+         SET personal_rating = $1, personal_review = $2, reading_status = $3, reading_notes = $4, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $5 AND device_id = $6
+         RETURNING *`,
+        [personal_rating, personal_review, reading_status, reading_notes, id, deviceId]
+      );
+
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating book review:', error);
+      res.status(500).json({ error: 'Failed to update book review' });
     }
   });
 

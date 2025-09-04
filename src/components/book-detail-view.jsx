@@ -1,45 +1,59 @@
 import React, { useEffect, useState } from 'react'
-import { ArrowLeft, Pencil, Trash2, Eye, Calendar, BookOpen, Hash, ArrowRightLeft, Star, Clock, Users, MessageSquare, Bookmark, BookmarkCheck, Play, Headphones, Download, Share2, Heart, ThumbsUp, PenTool, Landmark, PartyPopper, Paperclip, LucidePaperclip, ScanBarcode, Languages, Loader2, Wifi, WifiOff } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, Star, Calendar, BookOpen, Paperclip, Languages, Loader2, Wifi, WifiOff, Plus, Edit, Quote, Heart, MessageSquare, BookmarkCheck, Bookmark, ScanBarcode, PenTool, Landmark, NotebookPen, MessageCircleHeart } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from 'sonner'
-import { Progress } from '@/components/ui/progress'
-import BookForm from './book-form'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetTrigger } from "@/components/ui/sheet"
-import { Plus, Edit } from "lucide-react"
-import { useRef } from "react"
-import { formatISBN } from '@/lib/isbn'
-import { Copy } from "lucide-react"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet"
 import { Textarea } from './ui/textarea'
+import BookForm from './book-form'
+import { useRef } from "react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { formatISBN } from '@/lib/isbn'
 import ApiService from '../services/api'
+import apiService from '../services/api'
 
 const BookDetailView = ({ bookId, onBack }) => {
   const [book, setBook] = useState(null)
   const [userBooks, setUserBooks] = useState([])
   const [isInWishlist, setIsInWishlist] = useState(false)
   const [userRating, setUserRating] = useState(0)
-  const [isLiked, setIsLiked] = useState(false)
+  const [userReview, setUserReview] = useState("")
+  const [shelves, setShelves] = useState([])
+
+  const [readingStatus, setReadingStatus] = useState("to_read")
+  const [readingNotes, setReadingNotes] = useState("")
   const [editingBook, setEditingBook] = useState(null)
-  const [isAddOpen, setIsAddOpen] = useState(false)
+  const [isAddOpen, setIsAddOpen] = useState(false)  
   const bookFormRef = useRef(null)
   const [canSaveForm, setCanSaveForm] = useState(false)
   const [pagesRead, setPagesRead] = useState(0)
-  const [userReview, setUserReview] = useState("")
-  const [shelves, setShelves] = useState([])
   
-  // Loading and connection states
+  // Quotes state
+  const [quotes, setQuotes] = useState([])
+  const [newQuote, setNewQuote] = useState("")
+  const [newQuotePage, setNewQuotePage] = useState("")
+  const [newQuoteChapter, setNewQuoteChapter] = useState("")
+  const [newQuoteNotes, setNewQuoteNotes] = useState("")
+  const [editingQuote, setEditingQuote] = useState(null)
+  const [isQuoteSheetOpen, setIsQuoteSheetOpen] = useState(false)
+  
+  // Loading states
   const [isLoading, setIsLoading] = useState(true)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [isSaving, setIsSaving] = useState(false)
+
+  const [isSavingReview, setIsSavingReview] = useState(false)
+  const [quotesLoading, setQuotesLoading] = useState(false)
+  const [reviewMode, setReviewMode] = useState(userReview ? "view" : "edit")
 
   // Network status monitoring
   useEffect(() => {
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
-
+    
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
 
@@ -49,23 +63,28 @@ const BookDetailView = ({ bookId, onBack }) => {
     }
   }, [])
 
-  // Load book data from API with fallback to localStorage
+  // Load book data
   const loadBookData = async () => {
     try {
       setIsLoading(true)
-      
+
       if (isOnline) {
         // Try to load from API first (already transformed by ApiService)
         const apiBooks = await ApiService.getBooks()
+        const foundBook = apiBooks.find(b => b.id === bookId)
+      
         setUserBooks(apiBooks)
         
-        const foundBook = apiBooks.find(b => b.id === bookId)
         if (foundBook) {
           setBook(foundBook)
           setPagesRead(foundBook.meta?.pagesRead || 0)
-          if (foundBook.userRating) {
-            setUserRating(foundBook.userRating)
-          }
+          setUserRating(foundBook.personal_rating || 0)
+          setUserReview(foundBook.personal_review || "")
+          setReadingStatus(foundBook.reading_status || "to_read")
+          setReadingNotes(foundBook.reading_notes || "")
+                    
+          // Load quotes
+          loadQuotes(bookId)
         }
         
         // Update localStorage as cache
@@ -91,31 +110,67 @@ const BookDetailView = ({ bookId, onBack }) => {
       } else {
         const localShelves = JSON.parse(localStorage.getItem('userShelves') || '[]')
         setShelves(localShelves)
+      }      
+      
+      const apiBooks = await ApiService.getBooks()
+      const foundBook = apiBooks.find(b => b.id === bookId)
+      
+      if (foundBook) {
+        setBook(foundBook)
+        setPagesRead(foundBook.pages_read || 0)
+        setUserRating(foundBook.personal_rating || 0)
+        setUserReview(foundBook.personal_review || "")
+        setReadingStatus(foundBook.reading_status || "to_read")
+        setReadingNotes(foundBook.reading_notes || "")
+        
+        // Load quotes
+        loadQuotes(bookId)
       }
       
     } catch (error) {
       console.error('Failed to load book data:', error)
-      // Fallback to localStorage on error
-      const localBooks = JSON.parse(localStorage.getItem('userBooks') || '[]')
-      setUserBooks(localBooks)
-      const foundBook = localBooks.find(b => b.id === bookId)
-      if (foundBook) {
-        setBook(foundBook)
-        setPagesRead(foundBook.meta?.pagesRead || 0)
-      }
-      
-      toast.error("Mode hors ligne", {
-        description: "Impossible de charger les dernières données"
-      })
+      toast.error("Erreur lors du chargement du livre")
     } finally {
       setIsLoading(false)
     }
   }
 
+  // Load quotes
+  const loadQuotes = async (bookId) => {
+    try {
+      setQuotesLoading(true)
+      const bookQuotes = await ApiService.getBookQuotesOfflineFirst(bookId)
+      setQuotes(bookQuotes)
+    } catch (error) {
+      console.error('Failed to load quotes:', error)
+      toast.error("Erreur lors du chargement des citations")
+    } finally {
+      setQuotesLoading(false)
+    }
+  }
+
   useEffect(() => {
     loadBookData()
-  }, [bookId, isOnline])
+  }, [bookId])
 
+  const deletePersonalReview = async () => {
+    if (!book) return
+    try {
+      await ApiService.updateBookReview(book.id, {
+        personal_rating: null,
+        personal_review: null,
+        reading_status: readingStatus,
+        reading_notes: null
+      })
+      setUserReview("")
+      setReadingNotes("")
+      setReviewMode("edit")
+      toast.success("Votre avis a été supprimé")
+    } catch (error) {
+      console.error("Failed to delete review:", error)
+      toast.error("Erreur lors de la suppression")
+    }
+  }
   // Update book progress
   const updateBookProgress = async (newPagesRead) => {
     if (!book) return
@@ -233,31 +288,116 @@ const BookDetailView = ({ bookId, onBack }) => {
     })
   }
 
-  const submitReview = () => {
-    if (userReview.trim()) {
-      toast.success("Votre avis a été publié")
-      setUserReview("")
-    }
-  }
-  
   const handleEdit = () => {
     setEditingBook(book)
     setIsAddOpen(true)
   }
 
-  const handleWishlistToggle = () => {
-    setIsInWishlist(!isInWishlist)
-    toast.success(isInWishlist ? "Retiré de la wishlist" : "Ajouté à la wishlist")
+  // Save personal review
+  const savePersonalReview = async () => {
+    if (!book) return
+    
+    try {
+      setIsSavingReview(true)
+      
+      const reviewData = {
+        personal_rating: userRating || null,
+        personal_review: userReview.trim() || null,
+        reading_status: readingStatus,
+        reading_notes: readingNotes.trim() || null
+      }
+
+      await ApiService.updateBookReview(book.id, reviewData)
+      
+      // Update local book data
+      const updatedBook = { 
+        ...book, 
+        personal_rating: userRating,
+        personal_review: userReview,
+        reading_status: readingStatus,
+        reading_notes: readingNotes
+      }
+      setBook(updatedBook)
+      
+      toast.success("Votre avis a été sauvegardé")
+      
+    } catch (error) {
+      console.error('Failed to save review:', error)
+      if (!isOnline) {
+        ApiService.queueOfflineChange({
+          type: 'update_review',
+          bookId: book.id,
+          data: { personal_rating: userRating, personal_review: userReview, reading_status: readingStatus, reading_notes: readingNotes }
+        })
+        toast.info("Avis sauvegardé localement, sera synchronisé plus tard")
+      } else {
+        toast.error("Erreur lors de la sauvegarde")
+      }
+    } finally {
+      setIsSavingReview(false)
+    }
   }
 
-  const handleRating = (rating) => {
-    setUserRating(rating)
-    toast.success(`Note attribuée: ${rating}/5 étoiles`)
+  // Add new quote
+  const addQuote = async () => {
+    if (!newQuote.trim()) {
+      toast.error("Le texte de la citation est requis")
+      return
+    }
+
+    try {
+      const quoteData = {
+        quote_text: newQuote.trim(),
+        page_number: newQuotePage ? parseInt(newQuotePage) : null,
+        chapter: newQuoteChapter.trim() || null,
+        notes: newQuoteNotes.trim() || null,
+        is_favorite: false
+      }
+
+      const quote = await ApiService.addQuote(book.id, quoteData)
+      setQuotes([...quotes, quote])
+      
+      // Reset form
+      setNewQuote("")
+      setNewQuotePage("")
+      setNewQuoteChapter("")
+      setNewQuoteNotes("")
+      setIsQuoteSheetOpen(false)
+      
+      toast.success("Citation ajoutée")
+      
+    } catch (error) {
+      console.error('Failed to add quote:', error)
+      toast.error("Erreur lors de l'ajout de la citation")
+    }
   }
 
-  const handleLikeToggle = () => {
-    setIsLiked(!isLiked)
-    toast.success(isLiked ? "Like retiré" : "Livre liké")
+  // Toggle quote as favorite
+  const toggleQuoteFavorite = async (quote) => {
+    try {
+      const updatedQuote = await ApiService.updateQuote(quote.id, {
+        is_favorite: !quote.is_favorite
+      })
+      
+      setQuotes(quotes.map(q => q.id === quote.id ? updatedQuote : q))
+      toast.success(updatedQuote.is_favorite ? "Ajouté aux favoris" : "Retiré des favoris")
+      
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error)
+      toast.error("Erreur lors de la mise à jour")
+    }
+  }
+
+  // Delete quote
+  const deleteQuote = async (quoteId) => {
+    try {
+      await ApiService.deleteQuote(quoteId)
+      setQuotes(quotes.filter(q => q.id !== quoteId))
+      toast.success("Citation supprimée")
+    } catch (error) {
+      console.error('Failed to delete quote:', error)
+      toast.error("Erreur lors de la suppression")
+    }
   }
 
   if (isLoading) {
@@ -275,7 +415,6 @@ const BookDetailView = ({ bookId, onBack }) => {
     return (
       <div className="min-h-screen bg-primary flex items-center justify-center">
         <div className="text-center">
-        <img src="/src/assets/no-mybooks-no.png" className='max-w-xs mx-auto' alt="Book Banner" />          
           <h2 className="text-2xl font-bold text-white mb-4">Livre non trouvé</h2>
           <Button onClick={onBack} variant="secondary">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -287,6 +426,7 @@ const BookDetailView = ({ bookId, onBack }) => {
   }
 
   const readingProgress = Math.min((pagesRead || 0) / (book.pages || 1) * 100, 100)
+  const statusOptions = ApiService.getReadingStatusOptions()
 
   return (
     <div className="min-h-screen bg-primary">
@@ -317,25 +457,13 @@ const BookDetailView = ({ bookId, onBack }) => {
               </div>
             </div>
             
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={handleWishlistToggle}
-                className={`text-white border-light-100/30 hover:bg-light-100/20 transition-all duration-200 ${
-                  isInWishlist ? 'bg-gradient-to-r from-[#D6C7FF] to-[#AB8BFF] text-primary border-none' : ''
-                }`}
-              >
-                {isInWishlist ? <BookmarkCheck className="h-4 w-4 mr-2" /> : <Bookmark className="h-4 w-4 mr-2" />}
-                {isInWishlist ? 'Dans la wishlist' : 'Wishlist'}
-              </Button>
-              
+            <div className="flex items-center gap-2">              
               <Button 
                 variant="outline" 
                 size="sm"
                 onClick={handleEdit}
                 className="text-white border-light-100/30 hover:bg-light-100/20 hover:scale-105 transition-all duration-200"
-                disabled={isSaving}
+                disabled={isSaving}                
               >
                 <Pencil className="h-4 w-4 mr-2" />
                 Modifier
@@ -344,8 +472,8 @@ const BookDetailView = ({ bookId, onBack }) => {
               <Button 
                 variant="destructive" 
                 size="sm"
-                onClick={handleDelete}
                 className="hover:scale-105 transition-all duration-200"
+                onClick={handleDelete}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -380,7 +508,7 @@ const BookDetailView = ({ bookId, onBack }) => {
               {/* Author */}
                 <div className="flex items-center gap-2 mb-4 text-light-200">
                   <PenTool className="h-6 w-6 text-white" />
-                  <span className="text-lg font-semibold">Auteur(s):</span>
+                  <span className="text-lg font-semibold">Auteur (s):</span>
                   <div className="flex flex-wrap gap-2">
                     {(book.author ? book.author.split(",") : ["Inconnu"]).map((a, idx) => (
                       <Badge 
@@ -398,7 +526,7 @@ const BookDetailView = ({ bookId, onBack }) => {
                   <div className="flex items-center gap-1 ">
                     <Landmark className="h-full w-fll mr-2 text-white" />                  
                     <Badge variant="outline" className="text-light-200 border-light-100/30 text-lg">
-                      Série: {book.series != "" ? book.series : "Non spécifiée" } {book.volume && `(Vol. ${book.volume})`}
+                      Série: {book.series ? book.series : "Non spécifiée" } {book.volume && `(Vol. ${book.volume})`}
                     </Badge>
                   </div>
                   {book.language &&
@@ -425,14 +553,14 @@ const BookDetailView = ({ bookId, onBack }) => {
                           const year = d.getFullYear()
                           return `${day}-${month}-${year}`
                         })()
-                        : book.publishedYear || "N/A"
+                        : `??/??/${book.publishedYear}` || "N/A"
                       }
                     </Badge>
                   </div>
                   <div className="flex items-center gap-1">
                     <img className="h-8 w-8" src="/src/assets/write-paper.svg" alt="papers" />
                     <Badge variant="outline" className='text-lg ml-1.5'>
-                      {book.pages || 'N/A'} pages
+                      {book.pages || 0} pages
                     </Badge>
                   </div>
 
@@ -452,41 +580,46 @@ const BookDetailView = ({ bookId, onBack }) => {
                   ) : (
                     <div className="flex items-center gap-2">
                       <ScanBarcode className="text-white w-full h-full"/>
-                      <Badge variant="outline" className ="text-lg ml-1.5">ISBN: N/A</Badge>
+                      <Badge variant="outline" className ="text-lg ml-1.5">ISBN: 000-0-000-000</Badge>
                     </div>
                   )}
                 </div>
                 
-                {/* Enhanced Rating Display */}
-                <div className="flex items-center justify-center lg:justify-start gap-2 mb-4">
+                {/* Personal Rating */}
+                <div className="flex items-center gap-2 mb-4 lg:justify-start text-light-200 ">
+                  <MessageCircleHeart className="h-6 w-6 text-white"/>
+                  <span className="text-lg font-semibold">Ma note (rating):</span>
                   <div className="flex items-center gap-1">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <Star
                         key={star}
                         className={`h-5 w-5 cursor-pointer transition-all duration-200 ${
-                          star <= (userRating || parseFloat(book.rating)) 
-                            ? 'text-yellow-400 fill-yellow-400' 
-                            : 'text-gray-400'
+                          star <= userRating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400'
                         } hover:text-yellow-300 hover:scale-110`}
-                        onClick={() => handleRating(star)}
+                        onClick={() => setUserRating(star)}
                       />
                     ))}
                   </div>
-                  <span className="text-light-200 text-sm">
-                    {book.rating} ({Math.floor(Math.random() * 1000) + 100} avis)
-                  </span>
+                  {userRating > 0 && <span className="text-light-200 text-sm">({userRating}/5)</span>}
                 </div>
                 
-                {/* Genre Tags */}
+                {/* Genre Tags */}    
                 <div className="flex flex-wrap gap-2 mb-6">
                   <Badge className="bg-gradient-to-r from-[#D6C7FF] to-[#AB8BFF] text-primary">
                     {book.genre}
                   </Badge>
-                  {book.meta?.tags?.map((tag) => (
+                  {book.meta?.tags?.length ? 
+                  (book.meta.tags.map((tag) => (
                     <Badge key={tag} variant="outline" className="text-red-400 bg-red-400/10 border-light-100/30">
                       {tag}
-                    </Badge>
-                  ))} 
+                    </Badge>  
+                    )))
+                  : (
+                    <Badge variant="outline" className="text-red-400 bg-red-400/10 border-light-100/30">
+                      #notags 😒
+                    </Badge>  
+                  )
+                  } 
                 </div>
 
                 {/* Reading Progress Card */}
@@ -524,159 +657,280 @@ const BookDetailView = ({ bookId, onBack }) => {
           </div>
         </div>
       </div>
-
-      {/* Enhanced Tabs Section */}
+      
+      {/* Tabs Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="description" className="w-full mt-6">
-        <TabsList className="grid w-full grid-cols-3 bg-dark-100/40 mb-4">
-          <TabsTrigger value="description">Description</TabsTrigger>
-          <TabsTrigger value="reviews">Avis</TabsTrigger>
-          <TabsTrigger value="similar">Similaires</TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="review" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 bg-dark-100/40 mb-6">
+            <TabsTrigger value="description">Description</TabsTrigger>
+            <TabsTrigger value="review">Mon Avis</TabsTrigger>
+            <TabsTrigger value="quotes">Citations ({quotes.length})</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="description" className="space-y-6">
-          <Card className="bg-dark-100/50 border-light-100/20">
-            <CardContent className="p-6 space-y-4">
-              <p className="text-white leading-relaxed text-lg">
-                {book.description || "Aucune description disponible."}
-              </p>
-
-              <div className="flex flex-wrap gap-2">
-                {book.meta?.dateAdded && (
-                  <Badge variant="outline" className="text-light-200">
-                    Ajouté le: {new Date(book.meta.dateAdded).toLocaleDateString()}
-                  </Badge>
-                )}
-                {book.meta?.dateStarted && (
-                  <Badge variant="outline" className="text-light-200">
-                    Débuté le: {new Date(book.meta.dateStarted).toLocaleDateString()}
-                  </Badge>
-                )}
-                {book.meta?.dateFinished && (
-                  <Badge variant="outline" className="text-light-200">
-                    Terminé le: {new Date(book.meta.dateFinished).toLocaleDateString()}
-                  </Badge>
-                )}
-                {book.pages && (
-                  <Badge variant="outline" className="text-light-200">
-                    {book.meta?.pagesRead || 0} / {book.pages} pages lues
-                  </Badge>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-          <TabsContent value="reviews" className="space-y-6">
+          {/* Description Tab */}
+          <TabsContent value="description" className="space-y-6">
             <Card className="bg-dark-100/50 border-light-100/20">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Avis des lecteurs
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-              <Card className="bg-dark-100/50 border-light-100/20">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Ajouter votre avis
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-light-200">Votre note:</span>
-                  <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        className={`h-5 w-5 cursor-pointer transition-all duration-200 ${
-                          star <= userRating 
-                            ? 'text-yellow-400 fill-yellow-400' 
-                            : 'text-gray-400'
-                        } hover:text-yellow-300 hover:scale-110`}
-                        onClick={() => handleRating(star)}
-                      />
-                    ))}
-                  </div>
-                </div>
-                
-                <Textarea
-                  placeholder="Partagez votre expérience de lecture..."
-                  value={userReview}
-                  onChange={(e) => setUserReview(e.target.value)}
-                  className="bg-dark-100 border-light-100/20 text-white min-h-[100px]"
-                />
-                
-                <Button 
-                  onClick={submitReview}
-                  disabled={!userReview.trim()}
-                  className="bg-gradient-to-r from-[#D6C7FF] to-[#AB8BFF] text-primary hover:from-[#AB8BFF] hover:to-[#8B5DFF]"
-                >
-                  Publier votre avis
-                </Button>
-              </CardContent>
-            </Card>
-
-                {/* Sample reviews */}
-                {[
-                  { name: "Marie L.", rating: 5, comment: "Un livre absolument captivant ! Je n'ai pas pu le lâcher.", date: "Il y a 2 jours" },
-                  { name: "Thomas B.", rating: 4, comment: "Très bon livre, quelques longueurs mais globalement excellent.", date: "Il y a 1 semaine" },
-                  { name: "Sophie R.", rating: 5, comment: "L'un de mes livres préférés de l'année. Highly recommended!", date: "Il y a 2 semaines" }
-                ].map((review, index) => (
-                  <div key={index} className="border-b border-light-100/10 pb-4 last:border-b-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white font-medium">{review.name}</span>
-                        <div className="flex items-center gap-1">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star
-                              key={star}
-                              className={`h-3 w-3 ${
-                                star <= review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      <span className="text-xs text-light-200">{review.date}</span>
-                    </div>
-                    <p className="text-light-200">{review.comment}</p>
-                    <div className="flex items-center gap-4 mt-2">
-                      <Button variant="ghost" size="sm" className="text-light-200 hover:text-white">
-                        <ThumbsUp className="h-3 w-3 mr-1" />
-                        Utile ({Math.floor(Math.random() * 20) + 1})
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+              <CardContent className="p-6">
+                <p className="text-white leading-relaxed text-lg">
+                  {book.description || "Aucune description disponible."}
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="similar" className="space-y-6">
+          {/* Personal Review Tab */}
+          <TabsContent value="review" className="space-y-6">
             <Card className="bg-dark-100/50 border-light-100/20">
               <CardHeader>
-                <CardTitle>Livres similaires</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <NotebookPen className="h-5 w-5" />
+                  Mon avis personnel
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+
+                {reviewMode === "view" && userReview ? (
+                  <div className="space-y-6">
+                  {/* Main Review */}
+                  <blockquote className="relative pl-6 border-l-4 border-purple-400 text-xl italic leading-relaxed text-light-100">
+                    “{userReview}”
+                    <span className="absolute -top-2 -left-3 text-4xl text-purple-400 opacity-40">“</span>
+                  </blockquote>
+
+                  {/* Reading Notes */}
+                  {readingNotes && (
+                    <div className="bg-dark-100/60 border border-light-100/10 rounded-lg p-4">
+                      <h4 className="text-sm uppercase tracking-wide text-light-300 mb-2">
+                        Notes de lecture
+                      </h4>
+                      <p className="text-light-100 whitespace-pre-line">{readingNotes}</p>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex justify-end gap-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setReviewMode("edit")}
+                      className="flex items-center gap-2"
+                    >
+                      <Pencil className="h-4 w-4" /> Modifier
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={deletePersonalReview}
+                      className="flex items-center gap-2"
+                    >
+                      <Trash2 className="h-4 w-4" /> Supprimer
+                    </Button>
+                  </div>
+                </div>
+                ) : (
+                  <>
+                    {/* Existing editable textareas */}
+                    <div className="space-y-2">
+                      <label className="text-sm text-light-200">Mes impressions</label>
+                      <Textarea
+                        placeholder="Qu'avez-vous pensé de ce livre ?..."
+                        value={userReview}
+                        onChange={(e) => setUserReview(e.target.value)}
+                        className="min-h-[120px] bg-dark-100 border-light-100/20 text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm text-light-200">Notes de lecture</label>
+                      <Textarea
+                        placeholder="Notes personnelles..."
+                        value={readingNotes}
+                        onChange={(e) => setReadingNotes(e.target.value)}
+                        className="min-h-[100px] bg-dark-100 border-light-100/20 text-white"
+                      />
+                    </div>
+                    <Button 
+                      onClick={async () => {
+                        await savePersonalReview()
+                        setReviewMode("view")
+                      }}
+                      disabled={isSavingReview}
+                      className="bg-gradient-to-r from-[#D6C7FF] to-[#AB8BFF] text-primary"
+                    >
+                      {isSavingReview ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Sauvegarde...
+                        </>
+                      ) : (
+                        <>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Sauvegarder mon avis
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+
+          {/* Quotes Tab */}
+          <TabsContent value="quotes" className="space-y-6">
+            <Card className="bg-dark-100/50 border-light-100/20">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Quote className="h-5 w-5" />
+                    Mes citations favorites
+                  </div>
+                  <Button
+                    onClick={() => setIsQuoteSheetOpen(true)}
+                    size="sm"
+                    className="bg-gradient-to-r from-[#D6C7FF] to-[#AB8BFF] text-primary"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Ajouter
+                  </Button>
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {[1, 2, 3, 4].map((item) => (
-                    <div key={item} className="text-center group cursor-pointer">
-                      <img 
-                        src="/src/assets/no-book.png" 
-                        alt="Similar book" 
-                        className="w-full rounded-lg mb-2 group-hover:scale-105 transition-transform duration-200"
-                      />
-                      <p className="text-white text-sm font-medium">Titre similaire {item}</p>
-                      <p className="text-light-200 text-xs">Auteur {item}</p>
-                    </div>
-                  ))}
-                </div>
+                {quotesLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-[#AB8BFF]" />
+                  </div>
+                ) : quotes.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Quote className="h-12 w-12 text-light-200/50 mx-auto mb-3" />
+                    <p className="text-light-200 mb-2">Aucune citation sauvegardée</p>
+                    <p className="text-light-200/70 text-sm">Ajoutez vos passages préférés !</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {quotes.map((quote) => (
+                      <div key={quote.id} className="border border-light-100/10 rounded-lg p-4 bg-dark-100/30">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <blockquote className="text-white italic text-lg leading-relaxed mb-2">
+                              "{quote.quote_text}"
+                            </blockquote>
+                            {(quote.page_number || quote.chapter) && (
+                              <div className="flex gap-4 text-sm text-light-200/70">
+                                {quote.page_number && <span>Page {quote.page_number}</span>}
+                                {quote.chapter && <span>Chapitre: {quote.chapter}</span>}
+                              </div>
+                            )}
+                            {quote.notes && (
+                              <p className="text-light-200 text-sm mt-2 bg-dark-100/50 p-2 rounded">
+                                {quote.notes}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 ml-4">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleQuoteFavorite(quote)}
+                              className={quote.is_favorite ? "text-red-400" : "text-light-200"}
+                            >
+                              <Heart className={`h-4 w-4 ${quote.is_favorite ? 'fill-current' : ''}`} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteQuote(quote.id)}
+                              className="text-red-400 hover:text-red-300"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="text-xs text-light-200/50">
+                          Ajouté le {new Date(quote.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
+
+
         </Tabs>
+
+        {/* Add Quote Sheet */}
+        <Sheet open={isQuoteSheetOpen} onOpenChange={setIsQuoteSheetOpen}>
+          <SheetContent className="bg-primary text-white sm:max-w-md">
+            <SheetHeader>
+              <SheetTitle>Ajouter une citation</SheetTitle>
+            </SheetHeader>
+            
+            <div className="px-4 pb-4 space-y-4 overflow-y-auto">
+              <div className="space-y-2">
+                <label className="text-sm text-light-200">Citation *</label>
+                <Textarea
+                  placeholder="Saisissez le texte de la citation..."
+                  value={newQuote}
+                  onChange={(e) => setNewQuote(e.target.value)}
+                  className="min-h-[100px] bg-dark-100 border-light-100/20 text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm text-light-200">Page</label>
+                  <Input
+                    type="number"
+                    placeholder="123"
+                    value={newQuotePage}
+                    onChange={(e) => setNewQuotePage(e.target.value)}
+                    className="bg-dark-100 border-light-100/20 text-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm text-light-200">Chapitre</label>
+                  <Input
+                    placeholder="Chapitre 5"
+                    value={newQuoteChapter}
+                    onChange={(e) => setNewQuoteChapter(e.target.value)}
+                    className="bg-dark-100 border-light-100/20 text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm text-light-200">Notes personnelles</label>
+                <Textarea
+                  placeholder="Pourquoi cette citation vous a-t-elle marqué ?"
+                  value={newQuoteNotes}
+                  onChange={(e) => setNewQuoteNotes(e.target.value)}
+                  className="bg-dark-100 border-light-100/20 text-white"
+                />
+              </div>
+            </div>
+
+            <SheetFooter className="mt-6">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsQuoteSheetOpen(false)}
+                className="text-white border-light-100/30"
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={addQuote}
+                disabled={!newQuote.trim()}
+                className="bg-gradient-to-r from-[#D6C7FF] to-[#AB8BFF] text-primary"
+              >
+                Ajouter la citation
+              </Button>
+            </div>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
         
         {/* Edit Book Sheet */}
         <Sheet open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) setEditingBook(null) }}>
@@ -734,6 +988,9 @@ const BookDetailView = ({ bookId, onBack }) => {
         </Sheet>    
       </div>
     </div>
+
+
+
   )
 }
 

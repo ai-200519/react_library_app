@@ -50,7 +50,7 @@ const deviceMiddleware = (req, res, next) => {
 // Health check endpoint
 app.get('/health', async (req, res) => {
   try {
-    await pool.query('SELECT 1'); // simple test
+    await pool.query('SELECT 1');
     res.json({ 
       status: 'ok', 
       timestamp: new Date().toISOString(),
@@ -65,20 +65,19 @@ app.get('/health', async (req, res) => {
   }
 });
 
-
 // Import routes
 const devicesRoutes = require('./routes/devices');
 const booksRoutes = require('./routes/books');
 const shelvesRoutes = require('./routes/shelves');
 const tagsRoutes = require('./routes/tags');
-const reviewsRoutes = require('./routes/reviews');
+const quotesRoutes = require('./routes/quotes');
 
 // Apply routes
 app.use('/api/devices', devicesRoutes(pool));
 app.use('/api/books', deviceMiddleware, booksRoutes(pool));
 app.use('/api/shelves', deviceMiddleware, shelvesRoutes(pool));
 app.use('/api/tags', deviceMiddleware, tagsRoutes(pool));
-app.use('/api/reviews', reviewsRoutes(pool)); // No device middleware for public reviews
+app.use('/api/quotes', deviceMiddleware, quotesRoutes(pool));
 
 // 404 handler
 app.use((req, res) => {
@@ -90,7 +89,8 @@ app.use((error, req, res, next) => {
   console.error('Unhandled error:', error);
   res.status(500).json({ 
     error: 'Internal server error',
-    availableRoutes: ['/api/books', '/api/shelves', '/api/tags', '/api/reviews', '/health']  });
+    availableRoutes: ['/api/books', '/api/shelves', '/api/tags', '/api/quotes', '/health']
+  });
 });
 
 // Graceful shutdown
