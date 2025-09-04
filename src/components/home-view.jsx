@@ -252,6 +252,7 @@ const HomeView = () => {
           id: `trending-${work.key?.replace("/works/", "") || index}`,
           title: work.title || "Titre non disponible",
           imageUrl: work.cover_i ? `https://covers.openlibrary.org/b/id/${work.cover_i}-L.jpg` : null,
+          workKey: work.key,
           })) || []
 
         localStorage.setItem("trendingBooks", JSON.stringify(formattedTrendingBooks))
@@ -880,7 +881,7 @@ const HomeView = () => {
                   ) : (
                     <>
                       <BookPlus className="h-4 w-4" />
-                      Ajouter à ma bibliothèque
+                      Ajouter à La Bibliothèque
                     </>
                   )}
                 </Button>
