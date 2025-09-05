@@ -22,7 +22,7 @@ module.exports = (pool) => {
 
       const result = await pool.query(
         `SELECT 
-          id, book_id, quote_text, page_number, chapter, 
+          id, book_id, quote_text, page_number, chapter, notes, 
           is_favorite, created_at, updated_at
          FROM book_quotes 
          WHERE book_id = $1 
@@ -60,10 +60,10 @@ module.exports = (pool) => {
 
       const result = await pool.query(
         `INSERT INTO book_quotes 
-         (book_id, quote_text, page_number, chapter, is_favorite, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         (book_id, quote_text, page_number, chapter, notes, is_favorite, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
          RETURNING *`,
-        [bookId, quote_text.trim(), page_number || null, chapter || null, is_favorite]
+        [bookId, quote_text.trim(), page_number || null, chapter || null, notes || null, is_favorite]
       );
 
       res.status(201).json(result.rows[0]);
@@ -78,7 +78,7 @@ module.exports = (pool) => {
     try {
       const { quoteId } = req.params;
       const { deviceId } = req;
-      const { quote_text, page_number, chapter, is_favorite } = req.body;
+      const { quote_text, page_number, chapter, notes, is_favorite } = req.body;
 
       // Verify quote belongs to user's book
       const quoteCheck = await pool.query(
@@ -114,6 +114,12 @@ module.exports = (pool) => {
         updateValues.push(chapter || null);
         paramIndex++;
       }
+      
+      if (notes !== undefined) {
+        updateFields.push(`notes = $${paramIndex}`);
+        updateValues.push(notes || null);
+        paramIndex++;
+      }      
 
       if (is_favorite !== undefined) {
         updateFields.push(`is_favorite = $${paramIndex}`);
@@ -185,7 +191,7 @@ module.exports = (pool) => {
 
       const result = await pool.query(
         `SELECT 
-          id, book_id, quote_text, page_number, chapter, 
+          id, book_id, quote_text, page_number, chapter, notes, 
           is_favorite, created_at, updated_at
          FROM book_quotes 
          WHERE book_id = $1 AND is_favorite = true

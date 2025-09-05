@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { formatISBN } from '@/lib/isbn'
 import ApiService from '../services/api'
 import apiService from '../services/api'
+import WishlistSkeletonLoader from './quoteCard-skeleton'
 
 const BookDetailView = ({ bookId, onBack }) => {
   const [book, setBook] = useState(null)
@@ -966,8 +967,14 @@ const handleRatingChange = async (newRating) => {
               <CardContent>
                 {quotesLoading ? (
                   <div className="flex justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-[#AB8BFF]" />
-                  </div>
+                    {/* Loading Content */}
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                      <WishlistSkeletonLoader
+                        type="wishlist" 
+                        count={5} 
+                        message="Chargement des citations ..." 
+                      />
+                    </div>                  </div>
                 ) : quotes.length === 0 ? (
                   <div className="text-center py-8">
                     <Quote className="h-12 w-12 text-light-200/50 mx-auto mb-3" />
