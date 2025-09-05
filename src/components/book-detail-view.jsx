@@ -451,7 +451,8 @@ const handleRatingChange = async (newRating) => {
     return (
       <div className="min-h-screen bg-primary flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">Livre non trouvé</h2>
+          <img src="\src\assets\no-book-found.png" className="max-w-xs mx-auto"/>
+          <h4 className="text-2xl font-semibold text-white mb-4">Livre non trouvé</h4>
           <Button onClick={onBack} variant="secondary">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Retour à la bibliothèque
@@ -540,7 +541,7 @@ const handleRatingChange = async (newRating) => {
             {/* Enhanced Right Column */}
             <div className="lg:col-span-2 space-y-8">
               {/* Enhanced Title Section */}
-                <h2 className="mt-15 flex text-4xl font-bold mb-5 leading-tight">{book.title}</h2>
+                <h2 className="mt-6 flex text-4xl font-bold mb-5 leading-tight">{book.title}</h2>
               {/* Author */}
                 <div className="flex items-center gap-2 mb-4 text-light-200">
                   <PenTool className="h-6 w-6 text-white" />
@@ -688,6 +689,31 @@ const handleRatingChange = async (newRating) => {
                     </div>
                   </div>
                 )}
+                {/* Reading Dates */}
+                <span className="text-white font-mono">J'ai lu de:</span>
+                <div className="flex justify-between items-center mt-3 pt-2 border-t border-light-100/10">
+                  <div className="flex items-center gap-2 text-xs">
+                    <Calendar className="h-5 w-5 text-green-400" />
+                    <span className="text-sm font-mono text-light-200">Début:</span>
+                    <span className="text-white text-lg font-mono">
+                      {book.meta?.dateStarted 
+                        ? new Date(book.meta.dateStarted).toLocaleDateString('fr-FR')
+                        : "Non défini"
+                      }
+                    </span>
+                  </div>
+                  <div className='font-mono text-white'>Jusqu'à</div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <Calendar className="h-5 w-5 text-red-400" />
+                    <span className="text-sm font-mono text-light-200">Fin:</span>
+                    <span className="text-white text-lg font-mono">
+                      {book.meta?.dateFinished 
+                        ? new Date(book.meta.dateFinished).toLocaleDateString('fr-FR')
+                        : "Non défini"
+                      }
+                    </span>
+                  </div>
+                </div>                
             </div>
           </div>
         </div>
