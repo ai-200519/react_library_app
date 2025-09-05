@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { ArrowLeft, Pencil, Trash2, Star, Calendar, BookOpen, Paperclip, Languages, Loader2, Wifi, WifiOff, Plus, Edit, Quote, Heart, MessageSquare, BookmarkCheck, Bookmark, ScanBarcode, PenTool, Landmark, NotebookPen, MessageCircleHeart } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, Star, Calendar, BookOpen, Paperclip, Languages, Loader2, Wifi, WifiOff, Plus, Edit, Quote, Heart, MessageSquare, BookmarkCheck, Bookmark, ScanBarcode, PenTool, Landmark, NotebookPen, MessageCircleHeart, ChevronUp, ChevronDown } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -47,7 +47,10 @@ const BookDetailView = ({ bookId, onBack }) => {
 
   const [isSavingReview, setIsSavingReview] = useState(false)
   const [quotesLoading, setQuotesLoading] = useState(false)
-  const [reviewMode, setReviewMode] = useState(userReview ? "view" : "edit")
+  const [reviewMode, setReviewMode] = useState("view")
+
+ // hhmmm .... for description tab ... some styling
+  const [expanded, setExpanded] = useState(false);
 
   // Network status monitoring
   useEffect(() => {
@@ -111,21 +114,6 @@ const BookDetailView = ({ bookId, onBack }) => {
         const localShelves = JSON.parse(localStorage.getItem('userShelves') || '[]')
         setShelves(localShelves)
       }      
-      
-      const apiBooks = await ApiService.getBooks()
-      const foundBook = apiBooks.find(b => b.id === bookId)
-      
-      if (foundBook) {
-        setBook(foundBook)
-        setPagesRead(foundBook.pages_read || 0)
-        setUserRating(foundBook.personal_rating || 0)
-        setUserReview(foundBook.personal_review || "")
-        setReadingStatus(foundBook.reading_status || "to_read")
-        setReadingNotes(foundBook.reading_notes || "")
-        
-        // Load quotes
-        loadQuotes(bookId)
-      }
       
     } catch (error) {
       console.error('Failed to load book data:', error)
@@ -338,6 +326,54 @@ const BookDetailView = ({ bookId, onBack }) => {
     }
   }
 
+const handleRatingChange = async (newRating) => {
+  if (!book) return
+  
+  try {
+    setUserRating(newRating);
+    
+    // Send rating update immediately
+    await ApiService.updateBookReview(book.id, {
+      personal_rating: newRating,
+      reading_status: readingStatus,
+    });
+    
+    // Update local state
+    const updatedBook = { 
+      ...book, 
+      personal_rating: newRating,
+      reading_status: readingStatus,
+    };
+    setBook(updatedBook);
+    
+    // Update userBooks array
+    const updatedBooks = userBooks.map(b => 
+      b.id === updatedBook.id ? updatedBook : b
+    );
+    setUserBooks(updatedBooks);
+    localStorage.setItem('userBooks', JSON.stringify(updatedBooks));
+    
+    toast.success("Note sauvegardée");
+    
+  } catch (error) {
+    console.error('Failed to save rating:', error);
+    if (!isOnline) {
+      ApiService.queueOfflineChange({
+        type: 'update_review',
+        bookId: book.id,
+        data: { 
+          personal_rating: newRating, 
+          reading_status: readingStatus,
+          personal_review: userReview,
+          reading_notes: readingNotes
+        }
+      });
+      toast.info("Note sauvegardée localement, sera synchronisée plus tard");
+    } else {
+      toast.error("Erreur lors de la sauvegarde de la note");
+    }
+  }
+};
   // Add new quote
   const addQuote = async () => {
     if (!newQuote.trim()) {
@@ -593,10 +629,9 @@ const BookDetailView = ({ bookId, onBack }) => {
                     {[1, 2, 3, 4, 5].map((star) => (
                       <Star
                         key={star}
-                        className={`h-5 w-5 cursor-pointer transition-all duration-200 ${
+                        className={`h-5 w-5 transition-all duration-200 ${
                           star <= userRating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400'
-                        } hover:text-yellow-300 hover:scale-110`}
-                        onClick={() => setUserRating(star)}
+                        }`}
                       />
                     ))}
                   </div>
@@ -669,11 +704,68 @@ const BookDetailView = ({ bookId, onBack }) => {
 
           {/* Description Tab */}
           <TabsContent value="description" className="space-y-6">
+            {/* Additional Book Details Card */}
             <Card className="bg-dark-100/50 border-light-100/20">
-              <CardContent className="p-6">
-                <p className="text-white leading-relaxed text-lg">
-                  {book.description || "Aucune description disponible."}
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-light-200 flex gap-3"><Calendar/>Date d'ajout</div>
+                <p className="text-white font-medium">
+                  {book.meta?.dateAdded ? 
+                    new Date(book.meta.dateAdded).toLocaleDateString('fr-FR', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    }) : 
+                    "Non spécifiée"
+                  }
                 </p>
+              </div>
+            </CardContent>
+            </Card>            
+            <Card className="bg-gradient-to-br from-dark-100/70 to-purple-900/20 border-light-100/20 backdrop-blur-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <BookOpen className="h-5 w-5 ml-1.5 mr-1 text-white" />
+                  Description du livre
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 pt-0">
+                {book.description ? (
+                  <div className="relative">
+                    <p className={`text-light-100 leading-relaxed text-lg font-serif ${
+                      !expanded && "line-clamp-4"
+                    }`}>
+                      {book.description}
+                    </p>
+                    {book.description.length > 200 && (
+                      <button
+                        onClick={() => setExpanded(!expanded)}
+                        className="text-purple-400 hover:text-purple-300 text-sm font-medium mt-2 flex items-center gap-1"
+                      >
+                        {expanded ? (
+                          <>
+                            <ChevronUp className="h-4 w-4" />
+                            Voir moins
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-4 w-4" />
+                            Voir plus
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <BookOpen className="h-12 w-12 text-light-200/50 mx-auto mb-3" />
+                    <p className="text-light-200 mb-2">Aucune description disponible</p>
+                    <p className="text-light-200/70 text-sm">
+                      Vous pouvez ajouter une description en modifiant ce livre
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -688,25 +780,60 @@ const BookDetailView = ({ bookId, onBack }) => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-
-                {reviewMode === "view" && userReview ? (
-                  <div className="space-y-6">
-                  {/* Main Review */}
-                  <blockquote className="relative pl-6 border-l-4 border-purple-400 text-xl italic leading-relaxed text-light-100">
-                    “{userReview}”
-                    <span className="absolute -top-2 -left-3 text-4xl text-purple-400 opacity-40">“</span>
-                  </blockquote>
-
-                  {/* Reading Notes */}
-                  {readingNotes && (
-                    <div className="bg-dark-100/60 border border-light-100/10 rounded-lg p-4">
-                      <h4 className="text-sm uppercase tracking-wide text-light-300 mb-2">
-                        Notes de lecture
-                      </h4>
-                      <p className="text-light-100 whitespace-pre-line">{readingNotes}</p>
+              {/* Rating Display - Similar to Progress Slider */}
+              <div className="">
+                <div className="flex justify-between items-center mb-3">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-4 w-4 text-yellow-400" />
+                    <span className="text-white font-medium">Ma note</span>
+                    {/* Interactive rating display */}
+                    <div className="flex items-center gap-1 text-xs text-light-200">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`h-5 w-5 ${
+                            star <= userRating 
+                              ? 'text-yellow-400 fill-yellow-400' 
+                              : 'text-gray-400'
+                          }`}
+                        />
+                      ))} 
+                      <div className="ml-1.5">
+                        {userRating === 0 ? "Aucune note" : 
+                        userRating === 5 ? "Excellent !" :
+                        userRating === 4 ? "Très bon" :
+                        userRating === 3 ? "Bon" :
+                        userRating === 2 ? "Moyen" : "Décevant"}
+                      </div>                   
                     </div>
+                  </div>
+                  <span className="text-white text-sm">
+                    {userRating}/5
+                  </span>
+                </div>
+              </div>
+              { ( userReview || readingNotes ) && reviewMode === "view" ? (
+                <div className="space-y-6">
+                  {/* Main Review */}
+                  { userReview  ? (
+                    <blockquote className="relative pl-6 border-l-4 border-purple-400 text-xl italic leading-relaxed text-light-100">
+                      "{userReview}"
+                      <span className="absolute -top-2 -left-3 text-4xl text-purple-400 opacity-40">"</span>
+                    </blockquote>
+                  ) : (
+                    <div className="text-white"> le champs de votre impression n'est pas remplit </div>
                   )}
-
+                  
+                  { readingNotes  ? (
+                  <div className="bg-dark-100/60 border border-light-100/10 rounded-lg p-4">
+                    <h4 className="text-sm uppercase tracking-wide text-light-300 mb-2">
+                      Notes de lecture
+                    </h4>
+                    <p className="text-light-100 whitespace-pre-line">{readingNotes}</p>
+                  </div>                  
+                  ) : (
+                    <div className="text-white"> le champs de votre notes n'est pas remplit </div>
+                  )}                  
                   {/* Actions */}
                   <div className="flex justify-end gap-3">
                     <Button
@@ -729,7 +856,23 @@ const BookDetailView = ({ bookId, onBack }) => {
                 </div>
                 ) : (
                   <>
+                  <div className='space-y-2'>
                     {/* Existing editable textareas */}
+                    <span className="text-lg font-semibold">Régler votre Rating :</span>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`h-5 w-5 cursor-pointer transition-all duration-200 ${
+                            star <= userRating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400'
+                          } hover:text-yellow-300 hover:scale-110`}
+                          onClick={() => handleRatingChange(star)}
+                        />
+                      ))}
+                    </div>
+                  {userRating > 0 && <span className="text-light-200 text-sm">({userRating}/5)</span>}  
+                  </div>
+                    
                     <div className="space-y-2">
                       <label className="text-sm text-light-200">Mes impressions</label>
                       <Textarea

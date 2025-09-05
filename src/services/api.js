@@ -26,7 +26,7 @@ class ApiService {
     if (!this.isOnline) {
       throw new Error('No internet connection - working in offline mode')
     }
-
+  
     const url = `${this.baseURL}${endpoint}`
     const config = {
       headers: {
@@ -35,31 +35,79 @@ class ApiService {
       },
       ...options,
     }
-
+  
+    // Only stringify if body exists and is an object
     if (config.body && typeof config.body === 'object') {
       config.body = JSON.stringify(config.body)
     }
-
+  
     try {
-      console.log(`📡 API Request: ${config.method || 'GET'} ${endpoint}`)
+      console.log(`API Request: ${config.method || 'GET'} ${endpoint}`)
+      console.log('Request config:', {
+        url,
+        method: config.method || 'GET',
+        headers: config.headers,
+        bodyType: typeof config.body,
+        bodyLength: config.body ? config.body.length : 0
+      })
       
       const response = await fetch(url, config)
       
+      console.log(`Response status: ${response.status} ${response.statusText}`)
+      
+      // Check if response is ok
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
+        let errorData = {}
+        try {
+          errorData = await response.json()
+        } catch (parseError) {
+          console.warn('Could not parse error response as JSON:', parseError)
+          errorData = { error: `HTTP ${response.status}: ${response.statusText}` }
+        }
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
       }
-
-      const data = await response.json()
-      console.log(`✅ API Success: ${config.method || 'GET'} ${endpoint}`)
-      return data
+  
+      // Check if response has content
+      const contentLength = response.headers.get('content-length')
+      const contentType = response.headers.get('content-type')
+      
+      console.log('Response headers:', {
+        contentLength,
+        contentType
+      })
+      
+      // Handle empty responses
+      if (contentLength === '0' || !contentType || !contentType.includes('application/json')) {
+        console.warn('Response appears to be empty or not JSON')
+        return null
+      }
+  
+      const responseText = await response.text()
+      console.log('Raw response:', responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''))
+      
+      if (!responseText.trim()) {
+        console.warn('Response body is empty')
+        return null
+      }
+  
+      try {
+        const data = JSON.parse(responseText)
+        console.log(`API Success: ${config.method || 'GET'} ${endpoint}`)
+        return data
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError)
+        console.error('Response text that failed to parse:', responseText)
+        throw new Error('Server returned invalid JSON response')
+      }
       
     } catch (error) {
-      console.error(`❌ API Error: ${config.method || 'GET'} ${endpoint}`, error)
+      console.error(`API Error: ${config.method || 'GET'} ${endpoint}`, error)
       
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
         throw new Error('Network error - check your connection and server status')
       }
+      
+      // Re-throw the original error if it's already formatted
       throw error
     }
   }
@@ -96,12 +144,30 @@ class ApiService {
   }
 
   async createBook(bookData) {
-    const backendBook = this.transformToBackendFormat(bookData)
-    const result = await this.request('/books', {
-      method: 'POST',
-      body: backendBook,
-    })
-    return this.transformFromBackendFormat(result)
+    try {
+      const backendBook = this.transformToBackendFormat(bookData)
+      console.log('Sending to backend:', backendBook)
+      
+      const result = await this.request('/books', {
+        method: 'POST',
+        body: backendBook,
+      })
+      
+      console.log('Backend response:', result)
+      
+      // Check if result exists before transforming
+      if (!result) {
+        throw new Error('Backend returned null/undefined response')
+      }
+      
+      const transformedBook = this.transformFromBackendFormat(result)
+      console.log('Transformed book:', transformedBook)
+      
+      return transformedBook
+    } catch (error) {
+      console.error('Error in createBook:', error)
+      throw error
+    }
   }
 
   async updateBook(id, bookData) {
@@ -170,12 +236,10 @@ class ApiService {
   }
 
   async updateBookReview(bookId, reviewData) {
-    const backendBook = this.transformToBackendFormat(reviewData)
-    const response = await fetch(`/books/${bookId}/review`, {
+    return this.request(`/books/${bookId}/review`, {
       method: 'PATCH',
-      body: backendBook,
+      body: reviewData,
     });
-    return this.transformFromBackendFormat(response);
   }
 
   // Quotes API
@@ -241,6 +305,9 @@ class ApiService {
   }
 
   transformFromBackendFormat(backendBook) {
+    if (!backendBook) {
+      throw new Error('Book data is missing from backend response');
+    }
     return {
       id: backendBook.id,
       title: backendBook.title,
