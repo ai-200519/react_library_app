@@ -91,10 +91,7 @@ module.exports = (pool) => {
       date_finished, due_date, lend_to, borrow_from, date_added,
       shelves = [], tags = []
     } = req.body;
-
-    // Add debugging
-    console.log('Creating book with due_date:', due_date);
-
+    
     // Insert book
     const bookResult = await client.query(`
       INSERT INTO books (
@@ -217,8 +214,6 @@ module.exports = (pool) => {
         date_finished, due_date, lend_to, borrow_from, date_added, req.deviceId
       ]);
 
-      console.log('Updated book due_date:', bookResult.rows[0]?.due_date);
-
       if (bookResult.rows.length === 0) {
         return res.status(404).json({ error: 'Book not found' });
       }
@@ -298,7 +293,6 @@ module.exports = (pool) => {
 
   // Update book review/rating (specific endpoint for personal reviews)
   router.patch('/:id/review', async (req, res) => {
-    console.log('Review update request:', req.params.id, req.body) 
     try {
       const { id } = req.params;
       const { deviceId } = req;

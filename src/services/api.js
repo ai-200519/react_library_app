@@ -71,11 +71,6 @@ class ApiService {
       const contentLength = response.headers.get('content-length')
       const contentType = response.headers.get('content-type')
       
-      console.log('Response headers:', {
-        contentLength,
-        contentType
-      })
-      
       // Handle empty responses
       if (contentLength === '0' || !contentType || !contentType.includes('application/json')) {
         console.warn('Response appears to be empty or not JSON')
@@ -83,7 +78,6 @@ class ApiService {
       }
   
       const responseText = await response.text()
-      console.log('Raw response:', responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''))
       
       if (!responseText.trim()) {
         console.warn('Response body is empty')
