@@ -96,11 +96,11 @@ const LibraryView = ({ onBookSelect, onBack }) => {
       // Status filtering
       let matchesStatus = true
       if (filterOptions.status !== "all") {
-        if (filterOptions.status === "read") {
+        if (filterOptions.status === "finished") {
           matchesStatus = book.meta?.dateFinished !== null
-        } else if (filterOptions.status === "unread") {
+        } else if (filterOptions.status === "to_read") {
           matchesStatus = book.meta?.dateStarted === null && book.meta?.dateFinished === null
-        } else if (filterOptions.status === "reading") {
+        } else if (filterOptions.status === "currently_reading") {
           matchesStatus = book.meta?.dateStarted !== null && book.meta?.dateFinished === null
         }
       }
@@ -1092,9 +1092,9 @@ const handleAddTagConfirm = async () => {
                   onValueChange={(value) => setFilterOptions(prev => ({...prev, status: value}))}
                 >
                   <DropdownMenuRadioItem value="all">Tous les livres</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="read">Lus</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="unread">Non lus</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="reading">En cours</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="finished">Terminé</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="to_read">À lire</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="currently_reading">En cours de lecture</DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
                 
                 <DropdownMenuSeparator />
